@@ -1,0 +1,126 @@
+# Script based on https://github.com/lmsgerhardt/Gerhardt_JASN_2022/blob/main/Preprocessing/Clustering.R
+# Gerhardt et al 2022
+# and https://stuartlab.org/signac/articles/pbmc_multiomic
+
+library(Seurat)
+library(Signac)
+library(hdf5r)
+library(dplyr)
+library(magrittr)
+library(GenomeInfoDb)
+library(EnsDb.Mmusculus.v79)
+library(ggplot2)
+library(patchwork)
+library(stringr)
+library(Matrix)
+library(GenomicRanges)
+library(tibble)
+library(harmony)
+
+set.seed(1234)
+
+#################################### MERGE OBJECTS #######################################
+
+# load data
+CTRL1 <- readRDS("./CTRL1_Object.Rds")
+CTRL2 <- readRDS("./CTRL2_Object.Rds")
+CTRL3 <- readRDS("./CTRL3_Object.Rds")
+
+
+# Merge data to one object
+Ki67 <- merge(CTRL1, y = c(CTRL2, CTRL3),
+              add.cell.ids = c("CTRL_4wks_1", "CTRL_4wks_2", "CTRL_6mns_1"), project = "Ki67")
+
+
+head(Ki67@meta.data)
+table(Idents(Ki67))
+Ki67
+
+
+setwd("./Analysis_WT_Multiome/Pre-processing")
+saveRDS(Ki67,"Ki67_Object.Rds")
+
+
+################################# CLUSTERING ##############################################
+
+# Load data (if necessary)
+Ki67 <- readRDS("./Ki67_Object.Rds")
+
+DefaultAssay(Ki67) <- "RNA"
+Ki67
+
+# Split the dataset into a list of 6 seurat objects (WT1-3 and KO1-3)
+Ki67.list <- SplitObject(Ki67, split.by = "orig.ident")
+
+
+# Perform standard analysis of each modality independently 
+# RNA analysis
+# Integrate RNA assay
+# Normalize and identify variable features for each dataset independently
+Ki67.list <- lapply(X = Ki67.list, FUN = function(x) {
+x <- NormalizeData(x, normalization.method = "LogNormalize", scale.factor = 10000)
+x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# Select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = Ki67.list)
+
+# Perform integration
+# 30 PCA selected based on experience with former kidney single nuclei seq data analysis
+Ki67.anchors <- FindIntegrationAnchors(object.list = Ki67.list, anchor.features = features,
+                                       dims = 1:30, k.anchor = 5, verbose = TRUE)
+
+Ki67 <- IntegrateData(anchorset = Ki67.anchors, dims = 1:30, verbose = TRUE)
+
+# Run a single integrated analysis on all cells
+DefaultAssay(Ki67) <- "integrated"
+Ki67 <- ScaleData(Ki67, verbose = T)
+Ki67 <- RunPCA(Ki67, npcs = 30, verbose = T)
+Ki67 <- RunUMAP(Ki67, dims = 1:30, reduction = "pca", reduction.name = "umap.rna", reduction.key = 'rnaUMAP_', verbose = T)
+
+
+# Integrate ATAC assay 
+# We exclude the first dimension as this is typically correlated with sequencing depth
+DefaultAssay(Ki67) <- "ATAC"
+Ki67 <- RunTFIDF(Ki67, verbose = T)
+Ki67 <- FindTopFeatures(Ki67, min.cutoff = 'q0', verbose = T)
+Ki67 <- RunSVD(Ki67, verbose = T)
+Ki67 <- RunUMAP(Ki67, reduction = 'lsi', dims = 2:30, reduction.name = "umap.atac", reduction.key = "atacUMAP_", verbose = T)
+
+
+# WNN
+# We calculate a WNN graph, representing a weighted combination of RNA and ATAC-seq modalities. We use this graph for UMAP visualization and clustering
+Ki67 <- FindMultiModalNeighbors(Ki67, reduction.list = list("pca", "lsi"), dims.list = list(1:30, 2:30))
+Ki67 <- RunUMAP(Ki67, nn.name = "weighted.nn", reduction.name = "wnn.umap", reduction.key = "wnnUMAP_")
+Ki67 <- FindClusters(Ki67, graph.name = "wsnn", algorithm = 3, verbose = FALSE, resolution=0.8)
+
+
+saveRDS(Ki67,"Ki67_clustered.Rds")
+
+
+
+# Visualization
+DimPlot(Ki67, reduction = "wnn.umap", group.by = "seurat_clusters", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+DimPlot(Ki67, reduction = "umap.atac", group.by = "seurat_clusters", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("ATAC")
+DimPlot(Ki67, reduction = "umap.rna", group.by = "seurat_clusters", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
+
+
+FeaturePlot(Ki67, features = "percent.mt", reduction = "wnn.umap")
+FeaturePlot(Ki67, reduction = "wnn.umap", features = "nCount_RNA", label = T)
+FeaturePlot(Ki67, reduction = "wnn.umap", features = "nCount_ATAC", label = T)
+
+
+DimPlot(Ki67, reduction = "wnn.umap", group.by = "orig.ident", label = T)
+DimPlot(Ki67, reduction = "umap.atac", group.by = "orig.ident", label = T)
+DimPlot(Ki67, reduction = "umap.rna", group.by = "orig.ident", label = T)
+
+
+Idents(Ki67) <- "seurat_clusters"
+
+VlnPlot(Ki67, features = "nFeature_RNA", pt.size = 0)
+VlnPlot(Ki67, features = "nCount_ATAC", pt.size = 0) 
+VlnPlot(Ki67, features = "nCount_RNA", pt.size = 0)
+VlnPlot(Ki67, features = "percent.mt", pt.size = 0)
+VlnPlot(Ki67, features = "TSS.enrichment", pt.size = 0)
+
+

@@ -1,0 +1,62 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(magrittr)
+library(dplyr)
+
+
+################################################ VISUALIZATION OF CD-PC SUBCLUSTER ##########################################
+
+# Load data
+AP2_sub <- readRDS("./AP2_sub.rds")
+
+# UMAP annotated CD-PC subcluster
+# FIGURE 5D
+SubclusterUMAPtwilight <- DimPlot(AP2_sub,
+                          reduction = "umap",
+                          label=F, 
+                          group.by="sub.celltype", 
+                          pt.size = 1.5,
+                          cols = c("#D6C2B5", #CCD 
+                                   "#5B1B42", #OMCD
+                                   "#7798A0", #IMCD1
+                                   "#465E64", #IMCD2
+                                   "#99B2B8"),#IMCD3
+                          order = c("IMCD3",
+                                    "IMCD2",
+                                    "IMCD1",
+                                    "OMCD",
+                                    "CCD")) 
+
+SubclusterUMAPtwilight & theme(legend.position = "right") & 
+guides(color = guide_legend(nrow = 5, byrow = TRUE, override.aes = list(size = 4)))
+
+
+
+# Markerplot for CD-PC subcluster 
+# FIGURE 5E
+
+# Summarize IMCD1-3 cluster 
+head(AP2_sub@meta.data)
+Idents(AP2_sub) <- "sub.celltype"
+AP2_sub <- RenameIdents(AP2_sub, 
+                        `IMCD1` = "IMCD", 
+                        `IMCD2` = "IMCD", 
+                        `IMCD3` = "IMCD")
+
+AP2_sub[["sub.celltype"]] <- Idents(object = AP2_sub)
+
+
+# Markerplot
+MarkerplotSub <- DotPlot(AP2_sub,
+                         cols = c("grey", "#023e62", "#01253a"),
+                         assay = "RNA",
+                         features = c("Scnn1b",
+                                      "Aqp3",
+                                      "Cryab"))
+MarkerplotSub

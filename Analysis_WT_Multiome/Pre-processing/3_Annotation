@@ -1,0 +1,270 @@
+
+################################# Annotation ##############################################
+
+library(Seurat)
+library(Signac)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(dplyr)
+library(magrittr)
+library(psych)
+
+
+Ki67 <- readRDS("./Ki67_clustered.Rds")
+head(Ki67@meta.data)
+Ki67
+
+# Visualize marker expression in cluster 
+DefaultAssay(Ki67) <- "RNA"
+Idents(Ki67) <- "seurat_clusters"
+
+MarkerPlot <- DotPlot(Ki67,
+                      cols = c("#B2C5C9", "#19525F"),
+                      assay = "RNA",
+                      features = c("Podxl",                             #Podocytes
+                                   "Ncam1",                             #Parietal Epithelial Cell (PEC)
+                                   "Lrp2",                              #Proximal Tubule (PT) All Segments
+                                   "Slc5a12",                           #Proximal Tubule Segment1-2
+                                   "Cyp2e1", "Slc22a6",                 #Proximal Tubule Segment2
+                                   "Slc7a13",                           #Proximal Tubule Segment 3
+                                   "Aqp1", "Pax2",                      #Thin Limb
+                                   "Umod", "Slc12a1",                   #Thick Ascending Limb (TAL)
+                                   "Nos1",                              #Macula Densa (MD)
+                                   "Slc12a3",                           #Distal Convoluted Tubule (DCT)
+                                   "Calb1",                             #Connecting Tubule (CNT)
+                                   "Hsd11b2", "Aqp2", "Scnn1g",         #Collecting Duct Principal Cells (CD-PC)
+                                   "Upk1b",                             #Deep Medullary Epithelium of Pelvis/Urothelium
+                                   "Slc4a1",                            #Collecting Duct Intercalated Cells Type A (CD-IC)
+                                   "Slc26a4",                           #Collecting Duct Intercalated Cells Type B
+                                   "Foxi1",                             #Collecting Duct Intercalated Cells Both
+                                   "Pecam1", "Flt1",                    #Endothelium/Vasculature
+                                   "Pdgfrb", "Myh11",                   #Interstitial Cells
+                                   "Tyrobp", "Ptprc",                   #Immune Cells
+                                   "Top2a")) + RotatedAxis()            #Proliferating Cells
+ 
+
+
+MarkerPlot
+
+# Annotate cluster to kidney cell types based on marker expression
+head(Ki67@meta.data)
+Idents(Ki67) <- "seurat_clusters"
+
+Ki67 <- RenameIdents(Ki67,
+                    `0` = "PT_S2/3",
+                    `1` = "PT_S1",
+                    `2` = "PT_S1/2",
+                    `3` = "TAL",
+                    `4` = "DCT/CNT",
+                    `5` = "PT_S1/2",
+                    `6` = "PT_S1",
+                    `7` = "TAL",
+                    `8` = "PT_S3",
+                    `9` = "CNT",
+                    `10` = "PT_S3",
+                    `11` = "IC-A",
+                    `12` = "Vasculature",
+                    `13` = "CD-PC",
+                    `14` = "Interstitial Cells",
+                    `15` = "CD-PC",
+                    `16` = "IC-B",
+                    `17` = "DCT/CNT",
+                    `18` = "Multiplets",
+                    `19` = "Thin Limb",
+                    `20` = "Interstitial Cells",
+                    `21` = "Multiplets",
+                    `22` = "Immune Cells",
+                    `23` = "CD-PC",
+                    `24` = "Multiplets",
+                    `25` = "Multiplets",
+                    `26` = "Multiplets",
+                    `27` = "Podocytes",
+                    `28` = "PEC",
+                    `29` = "DCT/CNT",
+                    `30` = "Interstitial Cells",
+                    `31` = "DMEP")
+
+
+
+# Add "celltype" to meta data
+Ki67[["celltype"]] <- Idents(object = Ki67)
+head(Ki67@meta.data)
+
+# Check plots
+DimPlot(Ki67, reduction = "wnn.umap", group.by = "celltype", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("WNN")
+DimPlot(Ki67, reduction = "umap.atac", group.by = "celltype", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("ATAC")
+DimPlot(Ki67, reduction = "umap.rna", group.by = "celltype", label = TRUE, label.size = 2.5, repel = TRUE) + ggtitle("RNA")
+
+
+
+
+# Annotate cluster to broad kidney cell types based on marker expression
+Idents(Ki67) <- "seurat_clusters"
+
+Ki67 <- RenameIdents(Ki67,
+                     `0` = "PT",
+                     `1` = "PT",
+                     `2` = "PT",
+                     `3` = "TAL",
+                     `4` = "DCT/CNT",
+                     `5` = "PT",
+                     `6` = "PT",
+                     `7` = "TAL",
+                     `8` = "PT",
+                     `9` = "CNT",
+                     `10` = "PT",
+                     `11` = "CD-IC",
+                     `12` = "Vasculature",
+                     `13` = "CD-PC",
+                     `14` = "Interstitial Cells",
+                     `15` = "CD-PC",
+                     `16` = "CD-IC",
+                     `17` = "DCT/CNT",
+                     `18` = "Multiplets",
+                     `19` = "Thin Limb",
+                     `20` = "Interstitial Cells",
+                     `21` = "Multiplets",
+                     `22` = "Immune Cells",
+                     `23` = "CD-PC",
+                     `24` = "Multiplets",
+                     `25` = "Multiplets",
+                     `26` = "Multiplets",
+                     `27` = "Podocytes",
+                     `28` = "PEC",
+                     `29` = "DCT/CNT",
+                     `30` = "Interstitial Cells",
+                     `31` = "DMEP")
+
+
+
+# Add "broad_celltype" to meta data
+Ki67[["broad_celltype"]] <- Idents(object = Ki67)
+head(Ki67@meta.data)
+table(Ki67$broad_celltype)
+
+
+# Check UMAP
+Annotated_UMAP_twilight <- DimPlot(Ki67,
+                                   reduction = "wnn.umap",
+                                   label= F,
+                                   shuffle = T,
+                                   group.by="broad_celltype",
+                                   pt.size = 0.5,
+                                   cols = c("#05131b", #Podo
+                                            "#50595f", #PEC
+                                            "#B0C5DE", #PT
+                                            "#19525F", #tL
+                                            "#668b94", #TAL
+                                            "#7F2350", #DCT/CNT
+                                            "#501444", #CNT
+                                            "#2F1437", #CD-PC
+                                            "#483340", #DMEP
+                                            "#C9987B", #CD-IC
+                                            "#4d716c", #EC
+                                            "#81bdb5", #IntC
+                                            "#BC6B59", #Immune
+                                            "#a3b9be"),#Multiplets
+                                  order = c( "Multiplets",
+                                             "Immune Cells",
+                                             "Interstitial Cells",
+                                             "Vasculature",
+                                             "CD-IC",
+                                             "DMEP",
+                                             "CD-PC",
+                                             "CNT",
+                                             "DCT/CNT",
+                                             "TAL",
+                                             "Thin Limb",
+                                             "PT",
+                                             "PEC",
+                                             "Podocytes"))
+
+
+
+Annotated_UMAP_twilight & theme(legend.position = "right") & 
+  guides(color = guide_legend(nrow = 15,
+                              byrow = TRUE,
+                              override.aes = list(size = 2)))
+
+
+# Save Clustered Object incl. Celltypes
+saveRDS(Ki67,"Ki67_clustered.Rds")
+
+
+
+# Remove the multiplet clusters  
+Idents(Ki67) <- "broad_celltype"
+Ki67_FINAL <- subset(Ki67, idents=c("Immune Cells",
+                                    "Interstitial Cells",
+                                    "Vasculature",
+                                    "CD-IC",
+                                    "DMEP",
+                                    "CD-PC",
+                                    "CNT",
+                                    "DCT/CNT",
+                                    "TAL",
+                                    "Thin Limb",
+                                    "PT",
+                                    "PEC",
+                                    "Podocytes"))
+
+Ki67
+Ki67_FINAL
+
+# Check final UMAP
+Final_UMAP_twilight <- DimPlot(Ki67_FINAL,
+                                   reduction = "wnn.umap",
+                                   label= T,
+                                   shuffle = T,
+                                   group.by="broad_celltype",
+                                   pt.size = 1.5,
+                                   cols = c("#05131b", #Podo
+                                            "#50595f", #PEC
+                                            "#B0C5DE", #PT
+                                            "#19525F", #tL
+                                            "#668b94", #TAL
+                                            "#7F2350", #DCT/CNT
+                                            "#501444", #CNT
+                                            "#2F1437", #CD-PC
+                                            "#483340", #DMEP
+                                            "#C9987B", #CD-IC
+                                            "#4d716c", #EC
+                                            "#81bdb5", #IntC
+                                            "#BC6B59"),#Immune
+                                   order = c( "Immune Cells",
+                                              "Interstitial Cells",
+                                              "Vasculature",
+                                              "CD-IC",
+                                              "DMEP",
+                                              "CD-PC",
+                                              "CNT",
+                                              "DCT/CNT",
+                                              "TAL",
+                                              "Thin Limb",
+                                              "PT",
+                                              "PEC",
+                                              "Podocytes"))
+
+
+
+Final_UMAP_twilight & theme(legend.position = "right") & 
+  guides(color = guide_legend(nrow = 15,
+                              byrow = TRUE,
+                              override.aes = list(size = 2)))
+
+
+
+
+
+# Save Clustered Object incl. Celltypes w/o Multiplets
+saveRDS(Ki67_FINAL,"Ki67_clustered_multiplets_removed.Rds")
+
+
+
+
+

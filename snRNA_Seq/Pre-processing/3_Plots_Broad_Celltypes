@@ -1,0 +1,137 @@
+library(Seurat)
+library(psych)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+############################################ CLUSTER VISUALIZATION ##########################################################
+
+# Load data
+AP2 <- readRDS("./AP2.rds")
+
+# UMAP of all identified cluster
+# SUPPLEMENTARY FIGURE S5A
+Idents(AP2) = "integrated_snn_res.0.5"
+DimPlot(AP2, reduction = "umap", label = T,
+        cols = c("#B0C5DE", #0
+                 "#9eb1c7", #1
+                 "#58626f", #2
+                 "#697685", #3
+                 "#668b94", #4
+                 "#7b899b", #5
+                 "#3d5358", #6
+                 "#4d716c", #7
+                 "#476167", #8
+                 "#172120", #9
+                 "#a48096", #10
+                 "#DACCD5", #11
+                 "#4c243c", #12
+                 "#19525F", #13
+                 "#6d3457", #14
+                 "#BEA4A1", #15
+                 "#354f4b", #16
+                 "#1e2d2b", #17
+                 "#5b7d85", #18
+                 "#726260", #19
+                 "#81bdb5", #20
+                 "#483340", #21
+                 "#113942", #22
+                 "#8c9db1", #23
+                 "#05131b", #24
+                 "#bd8189", #25
+                 "#516f76"  #26))
+
+# Feature plot for mito reads 
+# SUPPLEMENTARY FIGURE S5B
+FeaturePlot(AP2, features = "percent.mt", cols = c("grey", "#023e62", "#01253a"), order = F)
+
+
+# UMAP annotated cluster
+Idents(AP2) = "celltype"
+
+# Exclude clusters of damaged cells (original cluster 9 & 17)
+# Cells.tmp w/o clusters of damaged cells used for further visualization
+cells.tmp=rownames(AP2@meta.data[!(AP2@meta.data$celltype %in% c("Damaged")),])
+length(rownames(AP2@meta.data))
+length(cells.tmp)
+levels(AP2)
+
+# UMAP grouped (WT vs KO)
+Idents(AP2) = "group"
+DimPlot(AP2, cells = cells.tmp, reduction = "umap", cols = c("#B2C5C9", "#345063"), shuffle = T, pt.size = 0.5)
+
+# UMAP broad cell types
+# FIGURE 5B
+AnnotatedUMAPtwilight <- DimPlot(AP2, 
+                         cells = cells.tmp,
+                         reduction = "umap",
+                         label= F, 
+                         shuffle = T,
+                         group.by="celltype",
+                         pt.size = 0.5,
+                         cols = c("#05131b", #Podo
+                                  "#19525F", #tL
+                                  "#668b94", #TAL 
+                                  "#7F2350", #DCT
+                                  "#501444", #CNT
+                                  "#2F1437", #CD-PC
+                                  "#483340", #DMEP
+                                  "#C9987B", #CD-IC
+                                  "#4d716c", #EC
+                                  "#81bdb5", #IntC
+                                  "#BC6B59",#Immune 
+                                  "#B0C5DE"), #PT
+                         order = c("PT",
+                                   "ImmuneCells",
+                                   "InterstitialCells",
+                                   "Endothelium",
+                                   "CD-IC",
+                                   "DMEP",
+                                   "CD-PC",
+                                   "CNT",
+                                   "DCT",
+                                   "TAL",
+                                   "tL", 
+                                   "Podocytes")) 
+
+AnnotatedUMAPtwilight & theme(legend.position = "right") & 
+guides(color = guide_legend(nrow = 12, byrow = TRUE, override.aes = list(size = 2))) 
+
+
+# Markerplot annotated cluster
+# FIGURE 5C
+Idents(AP2) = "celltype"
+MarkerPlot <- DotPlot(AP2,
+                      idents = c( "ImmuneCells",
+                                  "InterstitialCells",
+                                  "Endothelium",
+                                  "CD-IC",
+                                  "DMEP",
+                                  "CD-PC",
+                                  "CNT",
+                                  "DCT",
+                                  "TAL",
+                                  "tL", 
+                                  "PT", 
+                                  "Podocytes"),
+                       cols = c("grey", "#023e62", "#01253a"),
+                       assay = "RNA",
+                       features = c("Podxl",       #Podo
+                                    "Lrp2",        #PT
+                                    "Aqp1",        #tL
+                                    "Umod",        #TAL
+                                    "Slc12a3",     #DCT  
+                                    "Calb1",       #CNT
+                                    "Aqp2",        #CD-PC
+                                    "Upk1b",       #DMEP
+                                    "Atp6v0d2",    #CD-IC
+                                    "Pecam1",      #EC
+                                    "Col1a2",      #IntC
+                                    "Ptprc"        #Immune
+                       )) + RotatedAxis()       
+
+MarkerPlot & theme(legend.position = "right")

@@ -1,0 +1,135 @@
+library(Seurat)
+library(psych)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+
+########################################## EXPRESSION VISUALIZATION FOR SELECTED GENES ###############################
+
+# Load data
+AP2 <- readRDS("./snRNA_Seq/Pre-processing/AP2.rds") # replace with full path
+Idents(AP2) = "celltype"
+AP2_sub <- readRDS("./snRNA_Seq/Pre-processing/AP2_sub.rds") # replace with full path
+Idents(AP2_sub) = "sub.celltype"
+
+
+# Feature plot broad cell type
+# FIGURE 8A
+
+# Exclude clusters of damaged cells 
+# Cells.tmp w/o clusters of dead cells used for further visualization
+cells.tmp=rownames(AP2@meta.data[!(AP2@meta.data$celltype %in% c("Damaged")),])
+length(rownames(AP2@meta.data))
+length(cells.tmp)
+
+# Tfap2a
+Plot1 <- FeaturePlot(AP2,
+                    features = c("Tfap2a"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group",
+                    cells = cells.tmp)
+Plot1 & theme(legend.position = "right")
+
+# Cldn8
+Plot2 <- FeaturePlot(AP2,
+                    features = c("Cldn8"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group",
+                    cells = cells.tmp)
+Plot2 & theme(legend.position = "right")
+
+# Wnt9b
+Plot3 <- FeaturePlot(AP2,
+                    features = c("Wnt9b"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group",
+                    cells = cells.tmp)
+Plot3 & theme(legend.position = "right")
+
+
+
+# Feature plot sub cell type CD-PC
+# FIGURE 8A (small insert)
+
+# Tfap2a
+CDPC1 <- FeaturePlot(AP2_sub,
+                    features = c("Tfap2a"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group")
+CDPC1 & theme(legend.position = "right")
+
+# Cldn8
+CDPC2 <- FeaturePlot(AP2_sub,
+                    features = c("Cldn8"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group")
+CDPC2 & theme(legend.position = "right")
+
+# Wnt9b
+CDPC3 <- FeaturePlot(AP2_sub,
+                    features = c("Wnt9b"),
+                    pt.size = 0.5, 
+                    reduction = "umap", 
+                    order= T, 
+                    cols = c("grey", "#023e62", "#01253a"),
+                    split.by = "group")
+CDPC3 & theme(legend.position = "right")
+
+
+
+# Vln plot expression WT OMCD vs KO OMCD
+# FIGURE 8B
+
+# Cldn8
+Plot4 <- VlnPlot(AP2_sub,
+                features = "Cldn8",
+                pt.size = 0,
+                cols = c( "#345063", "#B2C5C9"),
+                group.by = "group",
+                idents = c("OMCD"),
+                y.max = 3.5)
+Plot4 + NoLegend() + geom_boxplot(width = 0.2)
+
+# Wnt9b
+Plot5 <- VlnPlot(AP2_sub,
+                features = "Wnt9b",
+                pt.size = 0,
+                cols = c( "#345063", "#B2C5C9"),
+                group.by = "group",
+                idents = c("OMCD"),
+                y.max = 3.5)
+Plot5 + NoLegend() + geom_boxplot(width = 0.2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,72 @@
+library(Signac)
+library(Seurat)
+library(JASPAR2020)
+library(TFBSTools)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(patchwork)
+library(ggseqlogo)
+library(chromVAR)
+
+set.seed(1234)
+
+################################################## MOTIF ACTIVITY ###########################################################
+
+# Load data
+Ki67 <- readRDS("./Ki67_RNA_ATAC_motifs.Rds")
+DefaultAssay(Ki67) <- "ATAC"
+Idents(Ki67) <- "broad_celltype"
+
+# Scan the DNA sequence of each peak for the presence of each motif, and create a Motif object. 
+pwm_set <- getMatrixSet(x = JASPAR2020, opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE)) #this is using the core vertebrate database
+motif.matrix <- CreateMotifMatrix(features = granges(Ki67), pwm = pwm_set, genome = 'mm10', use.counts = FALSE)
+motif.object <- CreateMotifObject(data = motif.matrix, pwm = pwm_set)
+Ki67 <- SetAssayData(Ki67, assay = 'ATAC', slot = 'motifs', new.data = motif.object)
+
+# Run chromVAR
+# Compute a per-cell motif activity score 
+# Note that this step can take 30-60 minutes
+library(BiocParallel)
+register(SerialParam())
+
+Ki67 <- RunChromVAR(
+  object = Ki67,
+  genome = BSgenome.Mmusculus.UCSC.mm10)
+
+# Save object with ATAC and chromvar assay
+saveRDS(Ki67,"Ki67_RNA_ATAC_motifs_chromvar_new.Rds")
+
+# Identify differentially active motifs
+DefaultAssay(Ki67) <- "chromvar"
+Ki67
+Idents(Ki67) <- "broad_celltype"
+
+# Make a matrix with motifs found in CD-PC
+da_motifs <- FindMarkers(object = Ki67,
+                            ident.1 = "CD-PC",
+                            only.pos = TRUE,
+                            test.use = "LR",
+                            min.pct = 0.1,
+                            mean.fxn = rowMeans,
+                            fc.name = "avg_diff",
+                            logfc.threshold = 0,       # finds all cluster specific motifs
+                            verbose = TRUE)
+
+# Add motif ID column
+head(da_motifs)
+da_motifs$motif <- row.names(da_motifs)
+head(da_motifs)
+
+# Add motif ID gene name 
+DefaultAssay(Ki67) <- "ATAC"
+motif.names <- da_motifs$motif
+da_motifs$gene <- ConvertMotifID(Ki67, id = motif.names)
+head(da_motifs)
+
+#Filter to keep only the motifs with padj < 0.01
+da_motifs <- da_motifs[which(da_motifs$p_val_adj<0.01),]
+
+# Save
+# SUPPLEMENTARY TABLE S3
+write.csv(da_motifs, file = "./Analysis_WT_Multiome//Ki67_chromvar_motif_CD-PC.csv")
+
+

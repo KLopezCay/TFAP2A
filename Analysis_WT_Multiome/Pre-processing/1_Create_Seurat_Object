@@ -1,0 +1,209 @@
+# Script based on https://github.com/lmsgerhardt/Gerhardt_JASN_2022/blob/main/Preprocessing/Making_SObj_and_QC.R
+# Gerhardt et al 2022
+# and https://stuartlab.org/signac/articles/pbmc_multiomic
+
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+install.packages("hdf5r")
+BiocManager::install("EnsDb.Mmusculus.v79")
+BiocManager::install("GenomeInfoDb", force = T)
+BiocManager::install("harmony")
+BiocManager::install("biovizBase")
+
+library(Seurat)
+library(Signac)
+library(hdf5r)
+library(dplyr)
+library(magrittr)
+library(GenomeInfoDb)
+library(EnsDb.Mmusculus.v79)
+library(ggplot2)
+library(patchwork)
+library(stringr)
+library(Matrix)
+library(GenomicRanges)
+library(tibble)
+library(harmony)
+
+set.seed(1234)
+
+
+################################# CREATE SEURAT OBJECT ##############################################
+# Create a Seurat object based on the gene expression data, and then add in the ATAC-seq data as a second assay. 
+# load the 10x output file (filtered_feature_bc_matrix.h5), which contains RNA and ATAC data.
+# process samples individually and merge seurat objects for normalization etc.
+
+
+setwd("./Analysis_WT_Multiome/Raw_Data")
+
+CTRL_4wks_1 <- Read10X_h5("4weeks_1/GSM6380583_Ctrl_4weeks_1_filtered_feature_bc_matrix.h5")
+CTRL_4wks_2 <- Read10X_h5("4weeks_2/GSM6380585_Ctrl_4weeks_2_filtered_feature_bc_matrix.h5")
+CTRL_6mns_1 <- Read10X_h5("6month_1/GSM6380595_Ctrl_6months_1_filtered_feature_bc_matrix.h5")
+
+# extract RNA and ATAC data
+rna_counts_4wks_1 <- CTRL_4wks_1$`Gene Expression`
+atac_counts_4wks_1 <- CTRL_4wks_1$Peaks
+
+rna_counts_4wks_2 <- CTRL_4wks_2$`Gene Expression`
+atac_counts_4wks_2 <- CTRL_4wks_2$Peaks
+
+rna_counts_6mns_1 <- CTRL_6mns_1$`Gene Expression`
+atac_counts_6mns_1 <- CTRL_6mns_1$Peaks
+
+# Create Seurat object
+CTRL1 <- CreateSeuratObject(counts = rna_counts_4wks_1, project = "CTRL1")
+CTRL1[["percent.mt"]] <- PercentageFeatureSet(CTRL1, pattern = "^mt-")
+
+CTRL2 <- CreateSeuratObject(counts = rna_counts_4wks_2, project = "CTRL2")
+CTRL2[["percent.mt"]] <- PercentageFeatureSet(CTRL2, pattern = "^mt-")
+
+CTRL3 <- CreateSeuratObject(counts = rna_counts_6mns_1, project = "CTRL3")
+CTRL3[["percent.mt"]] <- PercentageFeatureSet(CTRL3, pattern = "^mt-")
+
+
+
+# Now add in the ATAC-seq data
+# only use peaks in standard chromosomes
+grange.counts_CTRL1 <- StringToGRanges(rownames(atac_counts_4wks_1), sep = c(":", "-"))
+grange.use_CTRL1 <- seqnames(grange.counts_CTRL1) %in% standardChromosomes(grange.counts_CTRL1)
+atac_counts_4wks_1 <- atac_counts_4wks_1[as.vector(grange.use_CTRL1), ]
+
+grange.counts_CTRL2 <- StringToGRanges(rownames(atac_counts_4wks_2), sep = c(":", "-"))
+grange.use_CTRL2 <- seqnames(grange.counts_CTRL2) %in% standardChromosomes(grange.counts_CTRL2)
+atac_counts_4wks_2 <- atac_counts_4wks_2[as.vector(grange.use_CTRL2), ]
+
+grange.counts_CTRL3 <- StringToGRanges(rownames(atac_counts_6mns_1), sep = c(":", "-"))
+grange.use_CTRL3 <- seqnames(grange.counts_CTRL3) %in% standardChromosomes(grange.counts_CTRL3)
+atac_counts_6mns_1 <- atac_counts_6mns_1[as.vector(grange.use_CTRL3), ]
+
+
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Mmusculus.v79)
+seqlevelsStyle(annotations) <- 'UCSC'
+genome(annotations) <- "mm10"
+
+frag.file_CTRL1 <- "4weeks_1/GSM6380584_Ctrl_4weeks_1_atac_fragments.tsv.gz"
+frag.file_CTRL2 <- "4weeks_2/GSM6380586_Ctrl_4weeks_2_atac_fragments.tsv.gz" 
+frag.file_CTRL3 <- "6month_1/GSM6380596_Ctrl_6months_1_atac_fragments.tsv.gz" 
+
+
+#
+chrom_assay_CTRL1 <- CreateChromatinAssay(
+  counts = atac_counts_4wks_1,
+  sep = c(":", "-"),
+  genome = 'mm10',
+  fragments = frag.file_CTRL1,
+  min.cells = 10,
+  annotation = annotations
+)
+CTRL1[["ATAC"]] <- chrom_assay_CTRL1
+
+#
+chrom_assay_CTRL2 <- CreateChromatinAssay(
+  counts = atac_counts_4wks_2,
+  sep = c(":", "-"),
+  genome = 'mm10',
+  fragments = frag.file_CTRL2,
+  min.cells = 10,
+  annotation = annotations
+)
+CTRL2[["ATAC"]] <- chrom_assay_CTRL2
+
+#
+chrom_assay_CTRL3 <- CreateChromatinAssay(
+  counts = atac_counts_6mns_1,
+  sep = c(":", "-"),
+  genome = 'mm10',
+  fragments = frag.file_CTRL3,
+  min.cells = 10,
+  annotation = annotations
+)
+CTRL3[["ATAC"]] <- chrom_assay_CTRL3
+
+
+
+# Calculate TSSEnrichment and nucleosome signal
+DefaultAssay(CTRL1) <- "ATAC"
+CTRL1 <- TSSEnrichment(CTRL1, fast = TRUE)
+CTRL1 <- NucleosomeSignal(object = CTRL1)
+
+DefaultAssay(CTRL2) <- "ATAC"
+CTRL2 <- TSSEnrichment(CTRL2, fast = TRUE)
+CTRL2 <- NucleosomeSignal(object = CTRL2)
+
+DefaultAssay(CTRL3) <- "ATAC"
+CTRL3 <- TSSEnrichment(CTRL3, fast = TRUE)
+CTRL3 <- NucleosomeSignal(object = CTRL3)
+
+
+
+# Basic quality control
+VlnPlot(
+  object = CTRL1,
+  split.by = "orig.ident",
+  features = c("nCount_RNA", "nCount_ATAC", "TSS.enrichment", "nucleosome_signal", "percent.mt"),
+  ncol = 4,
+  pt.size = 0
+)
+VlnPlot(
+  object = CTRL2,
+  split.by = "orig.ident",
+  features = c("nCount_RNA", "nCount_ATAC", "TSS.enrichment", "nucleosome_signal", "percent.mt"),
+  ncol = 4,
+  pt.size = 0
+)
+VlnPlot(
+  object = CTRL3,
+  split.by = "orig.ident",
+  features = c("nCount_RNA", "nCount_ATAC", "TSS.enrichment", "nucleosome_signal", "percent.mt"),
+  ncol = 4,
+  pt.size = 0
+)
+
+
+# Selection of cells for merge
+CTRL1 <- subset(CTRL1, 
+                subset = 
+                  nFeature_RNA > 350 &
+                  nFeature_RNA < 3500 &
+                  nCount_RNA < 8000 &
+                  nCount_RNA > 500 &
+                  nCount_ATAC > 1000 &
+                  nCount_ATAC < 100000 &
+                  TSS.enrichment > 2 &
+                  nucleosome_signal < 3 &
+                  percent.mt < 1)
+CTRL2 <- subset(CTRL2, 
+                subset = 
+                  nFeature_RNA > 350 &
+                  nFeature_RNA < 3500 &
+                  nCount_RNA < 8000 &
+                  nCount_RNA > 500 &
+                  nCount_ATAC > 1000 &
+                  nCount_ATAC < 100000 &
+                  TSS.enrichment > 2 &
+                  nucleosome_signal < 3 &
+                  percent.mt < 1)
+CTRL3 <- subset(CTRL3, 
+                subset = 
+                  nFeature_RNA > 350 &
+                  nFeature_RNA < 3500 &
+                  nCount_RNA < 8000 &
+                  nCount_RNA > 500 &
+                  nCount_ATAC > 1000 &
+                  nCount_ATAC < 100000 &
+                  TSS.enrichment > 2 &
+                  nucleosome_signal < 3 &
+                  percent.mt < 1)
+
+
+
+# Save R Objects
+setwd("./Analysis_WT_Multiome/Pre-processing")
+saveRDS(CTRL1,"CTRL1_Object.Rds")
+saveRDS(CTRL2,"CTRL2_Object.Rds")
+saveRDS(CTRL3,"CTRL3_Object.Rds")
+
+
+
+

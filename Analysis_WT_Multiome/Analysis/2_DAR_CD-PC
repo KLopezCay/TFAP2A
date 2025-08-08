@@ -1,0 +1,58 @@
+# Script based on 
+# and https://stuartlab.org/signac/articles/pbmc_vignette.html
+# and Gerhardt et al 2022
+# https://github.com/lmsgerhardt/Gerhardt_JASN_2022/blob/main/Analysis/DAR.R
+
+
+######################################### DARs ###############################################################
+
+# Find differentially accessible peaks between cell types
+# To find differentially accessible regions between clusters of cells, 
+# we can perform a differential accessibility (DA) test.
+
+library(Signac)
+library(Seurat)
+library(GenomeInfoDb)
+library(EnsDb.Mmusculus.v79)
+
+set.seed(1234)
+
+# Load data
+Ki67 <- readRDS("./Ki67_clustered_multiplets_removed_activity.Rds")
+
+# Identify DARs for CD-PC
+DefaultAssay(Ki67) <- 'ATAC'
+Idents(Ki67) = "broad_celltype"
+
+da_peaks <- FindMarkers(
+  object = Ki67,
+  min.pct = 0.05,
+  ident.1 = "CD-PC",
+  test.use = 'LR',
+  latent.vars = 'nCount_ATAC',
+  logfc.threshold = 0.25,
+  only.pos = T,
+  verbose = T)
+
+head(da_peaks)
+da_peaks$DAR <- row.names(da_peaks)
+head(da_peaks)
+
+# Identify closest feature
+# Finds the closest gene to each of the peaks 
+cf <- ClosestFeature(Ki67,rownames(da_peaks))
+da_peaks <- cbind(da_peaks, gene=cf$gene_name, gene_id=cf$gene_id,distance=cf$distance)
+head(da_peaks)
+
+# Save DARs
+# Supplementary Table S1
+da_peaks <- da_peaks[which(da_peaks$p_val_adj<0.01),]
+write.csv(da_peaks, "./Ki67_DAR_CD-PC_logFC0.25_minpct0.05_padj0.01.csv", row.names = T)
+
+
+
+
+
+
+
+

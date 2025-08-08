@@ -1,0 +1,246 @@
+# Script based on https://github.com/lmsgerhardt/Gerhardt_JASN_2022/blob/main/Preprocessing/Making_SObj_and_QC.R
+# Gerhardt et al 2022
+# and https://stuartlab.org/signac/articles/pbmc_multiomic
+
+
+######################################## PLOTS FOR PUBLICATION ##############################################
+
+library(Seurat)
+library(Signac)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(dplyr)
+library(magrittr)
+library(psych)
+
+# Load data
+Ki67 <- readRDS("./Ki67_clustered_multiplets_removed_activity.Rds")
+
+############################################## FIGURE 1 ###########################################################
+
+### Figure 1a
+# Annotated UMAP broad cell types w/o multiplet cluster
+UMAP_annotated <- DimPlot(Ki67,
+                          reduction = "wnn.umap",
+                          label= F,
+                          shuffle = T,
+                          group.by="broad_celltype",
+                          pt.size = 0.5,
+                          cols = c("#05131b", #Podo
+                                   "#50595f", #PEC
+                                   "#B0C5DE", #PT
+                                   "#19525F", #tL
+                                   "#668b94", #TAL
+                                   "#7F2350", #DCT/CNT
+                                   "#501444", #CNT
+                                   "#2F1437", #CD-PC
+                                   "#483340", #DMEP
+                                   "#C9987B", #CD-IC
+                                   "#4d716c", #EC
+                                   "#81bdb5", #IntC
+                                   "#BC6B59"),#Immune
+                         order = c("Immune Cells",
+                                   "Interstitial Cells",
+                                   "Vasculature",
+                                   "CD-IC",
+                                   "DMEP",
+                                   "CD-PC",
+                                   "CNT",
+                                   "DCT/CNT",
+                                   "TAL",
+                                   "Thin Limb",
+                                   "PT",
+                                   "PEC",
+                                   "Podocytes"))
+
+UMAP_annotated & theme(legend.position = "right") & 
+  guides(color = guide_legend(nrow = 13,
+                              byrow = TRUE,
+                              override.aes = list(size = 5)))
+
+
+
+### Figure 1b
+# Gene expression of Tfap2a and Tfap2b in broad cell types (w/o multiplet cluster)
+
+# Visualize gene expression
+DefaultAssay(Ki67) <- "RNA"
+FeaturePlot(Ki67,
+            reduction = "wnn.umap",
+            features = c("Tfap2a", "Tfap2b"),
+            pt.size = 0.8, 
+            order= T, 
+            cols = c("grey", "#023e62", "#01253a"))
+
+
+
+### Figure 1c
+# Gene activity (based on open chromatin) of Tfap2a and Tfap2b in broad cell types (w/o multiplet cluster)
+
+# Visualize gene activity
+DefaultAssay(Ki67) <- "activity"
+FeaturePlot(Ki67,
+            reduction = "wnn.umap",
+            features = c("Tfap2a", "Tfap2b"),
+            pt.size = 0.8, 
+            order= T, 
+            cols = c("grey", "#501444", "#2F1437"))
+
+
+
+############################################## SUPPL. FIGURE 1 ###########################################################
+
+# Quality control: nUMI, nGene, Mitochondrial RNA [%]
+
+Idents(Ki67) = "orig.ident"
+head(Ki67@meta.data)
+
+### Suppl. Fig 1a
+VlnUMI <- VlnPlot(Ki67, features = c("nCount_RNA"), pt.size = 0, stack = F, cols = c("lightgrey", "lightgrey", "lightgrey")) + geom_boxplot(width = 0.2) + NoLegend()
+### Suppl. Fig 1b
+VlnGene <- VlnPlot(Ki67, features = c("nFeature_RNA"), pt.size = 0, stack = F, cols = c("lightgrey", "lightgrey", "lightgrey")) + geom_boxplot(width = 0.2) + NoLegend()
+### Suppl. Fig 1c
+Vlnpctmt <- VlnPlot(Ki67, features = c("percent.mt"), pt.size = 0, stack = F, cols = c("lightgrey", "lightgrey", "lightgrey")) + geom_boxplot(width = 0.2) + NoLegend()
+
+plot_grid(VlnUMI,VlnGene, Vlnpctmt, ncol = 3)
+
+# Save data
+library(data.table)
+data_to_write_out <- as.data.frame(as.matrix(Ki67@meta.data))
+write.table(x = data_to_write_out, file = "metadata_Ki67.txt")
+
+
+### Suppl. Fig 1d
+# Marker genes of broad cell types w/o multiplet cluster
+
+# Reorder cluster along nephron
+Idents(Ki67) = "broad_celltype"
+levels(Ki67)
+
+my_levels <- c("Podocytes",
+               "PEC",
+               "PT",
+               "Thin Limb",
+               "TAL",
+               "DCT/CNT",
+               "CNT",
+               "CD-PC",
+               "DMEP",
+               "CD-IC",
+               "Vasculature",
+               "Interstitial Cells",
+               "Immune Cells")
+               
+factor(Idents(Ki67), levels= my_levels)
+Idents(Ki67) <- factor(Idents(Ki67), levels= my_levels)
+levels(Ki67)
+
+# Markerplot
+MarkerPlot  <- DotPlot(Ki67,
+                       cols = c("grey", "#023e62", "#01253a"),
+                       assay = "RNA",
+                       features = c("Podxl",       #Podo
+                                    "Ncam1",       #PEC
+                                    "Lrp2",        #PT
+                                    "Aqp1",        #tL
+                                    "Umod",        #TAL
+                                    "Slc12a3",     #DCT  
+                                    "Calb1",       #CNT
+                                    "Aqp2",        #CD-PC
+                                    "Upk1b",       #DMEP
+                                    "Atp6v0d2",    #CD-IC
+                                    "Pecam1",      #EC
+                                    "Col1a2",      #IntC
+                                    "Ptprc"        #Immune
+                       )) + RotatedAxis() + theme(legend.position="right") +
+  scale_y_discrete(limits=rev)
+
+MarkerPlot
+
+
+
+############################################## SUPPL. FIGURE 2 ###########################################################
+
+# Visualize the DNA accessibility for Tfap2a and Tfap2b in broad cell types
+
+# Coverage plot
+# set assay and idents
+# Please note: directory for fragment file stored in ATAC assay
+DefaultAssay(Ki67) <- "ATAC"
+Idents(Ki67) <- "broad_celltype"
+
+# set plotting order
+my_levels <- c("Podocytes",
+               "PEC",
+               "PT",
+               "Thin Limb",
+               "TAL",
+               "DCT/CNT",
+               "CNT",
+               "CD-PC",
+               "DMEP",
+               "CD-IC",
+               "Vasculature",
+               "Interstitial Cells",
+               "Immune Cells")
+
+factor(Idents(Ki67), levels= my_levels)
+Idents(Ki67) <- factor(Idents(Ki67), levels= my_levels)
+levels(Ki67)
+
+cols <-c("#05131b", #Podo
+         "#50595f", #PEC
+         "#B0C5DE", #PT
+         "#19525F", #tL
+         "#668b94", #TAL
+         "#7F2350", #DCT/CNT
+         "#501444", #CNT
+         "#2F1437", #CD-PC
+         "#483340", #DMEP
+         "#C9987B", #CD-IC
+         "#4d716c", #EC
+         "#81bdb5", #IntC
+         "#BC6B59")#Immune
+
+
+### Suppl. Figure 2A
+cov_plot <- CoveragePlot(
+  object = Ki67,
+  region = "Tfap2a",
+  features = "Tfap2a",
+  annotation = TRUE,
+  peaks = T,
+  tile = F,
+  links = F,
+  extend.upstream = 5000,
+  extend.downstream = 10000)
+
+cov_plot & scale_fill_manual(values = cols)
+
+
+### Suppl. Figure 2B
+cov_plot2 <- CoveragePlot(
+  object = Ki67,
+  region = "Tfap2b",
+  features = "Tfap2b",
+  annotation = TRUE,
+  peaks = T,
+  tile = F,
+  links = F,
+  extend.upstream = 5000,
+  extend.downstream = 10000)
+
+cov_plot2 & scale_fill_manual(values = cols)
+
+
+
+
+
+
+
+

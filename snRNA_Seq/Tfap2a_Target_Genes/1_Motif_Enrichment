@@ -1,0 +1,634 @@
+# perform DNA sequence motif analysis
+# examine the accessible regions of each cell to determine enriched motifs
+# finding overrepresented motifs in a set of differentially accessible peaks
+
+
+library(Signac)
+library(Seurat)
+library(JASPAR2020)
+library(TFBSTools)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(patchwork)
+library(ggseqlogo)
+library(chromVAR)
+library(dplyr)
+
+set.seed(1234)
+
+############################################## MOTIF ENRICHMENT IN OMCD DEGs ########################################################################
+
+
+# Load data
+# Use file with motif information stored
+mot <- readRDS("./Analysis_WT_Multiome/Analysis/Ki67_RNA_ATAC_motifs.Rds") # replace with full path
+DefaultAssay(mot) <- "ATAC"
+
+# Subset CD-PC cells (others not needed)
+CDPC_only <- subset(mot, idents= "CD-PC")
+
+# Get a list of motif position frequency matrices from the JASPAR database
+pfm <- getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE))
+              
+# Scan the DNA sequence of each peak for the presence of each motif
+# returns a table indicating whether a motif (all motifs = columns) is present in a peak (all peaks = rows)
+motif.matrix <- CreateMotifMatrix(
+  features = granges(CDPC_only),
+  pwm = pfm,
+  genome = 'mm10',
+  use.counts = FALSE)
+
+mtx = as.data.frame(as.matrix(motif.matrix))
+
+# Identify closest feature
+# Finds the closest gene to each of the peaks 
+cf <- ClosestFeature(CDPC_only, rownames(mtx))
+mtx <- cbind(mtx, gene=cf$gene_name, gene_id=cf$gene_id,distance=cf$distance)
+
+
+####################### MOTIF ENRICHMENT FOR DOWNREGULATED GENES IN OMCD ########################
+# Filter for peaks associated with OMCD DEGs down (n = 241) from single cell analysis Tfap2a WT vs KO
+dn <- mtx %>%
+  filter(gene %in% c('Bend7',
+                     'Gpr107',
+                     'Dmxl2',
+                     'Mbip',
+                     'Pard3bos1',
+                     'Itpr2',
+                     'Cldn8',
+                     'Npnt',
+                     'Fam196a',
+                     'Anxa9',
+                     'Gadd45g',
+                     'Svil',
+                     'Man1a2',
+                     'mt-Nd2',
+                     'Kng2',
+                     'Paqr5',
+                     'Nr6a1',
+                     'Tenm3',
+                     'Dennd4c',
+                     'Ndfip1',
+                     'Ptprk',
+                     'Ctdspl',
+                     'Lrrc31',
+                     'Dtnb',
+                     'Ppp2r3a',
+                     'Ndst1',
+                     'Numb',
+                     'Osbpl8',
+                     'Gm26733',
+                     'Wdr20',
+                     'Gm42418',
+                     'Platr22',
+                     'Ccdc50',
+                     'Vgll4',
+                     'Gm4876',
+                     'Arhgap29',
+                     'Tomm70a',
+                     'Mier3',
+                     'Efnb2',
+                     'Galnt18',
+                     'Peak1',
+                     'Camk1d',
+                     'Myof',
+                     'Gdf15',
+                     'Prpf4b',
+                     'Muc20',
+                     'Gm36975',
+                     'Sf3b3',
+                     'Shroom4',
+                     'Veph1',
+                     'Egfr',
+                     'Tmem158',
+                     'Ivns1abp',
+                     'Rnf128',
+                     'Zmynd8',
+                     'Klhdc8a',
+                     'Lrrc41',
+                     'Rbpms',
+                     'Fcho2',
+                     'Cpeb4',
+                     'Alg9',
+                     'Gm10031',
+                     'Kpna4',
+                     'Ppfibp1',
+                     'Itga3',
+                     'Gm10073',
+                     'Egf',
+                     'Fcgbp',
+                     'Cgnl1',
+                     'Usp40',
+                     'Plet1',
+                     'Cobll1',
+                     'Polb',
+                     'Car5b',
+                     'Tsc22d4',
+                     'Apbb2',
+                     'Gpr39',
+                     'Wwc1',
+                     'Zfand3',
+                     'Malat1',
+                     'Hnrnpr',
+                     'Myh10',
+                     'Gramd1b',
+                     'Cald1',
+                     'Alcam',
+                     'Rps3a1',
+                     'Foxj3',
+                     '1110008P14Rik',
+                     'AY036118',
+                     'Skp1a',
+                     'Pi4k2b',
+                     '4932438A13Rik',
+                     'Plpp3',
+                     'Sgk1',
+                     'Shroom3',
+                     'Cdkl1',
+                     'Lmo7',
+                     'Kctd12b',
+                     'Tmed5',
+                     'Thbs1',
+                     'Wrn',
+                     'Chst9',
+                     'Map4k5',
+                     'Aqp4',
+                     'Sema3c',
+                     'Ranbp3l',
+                     'Osbpl9',
+                     'Glis2',
+                     'Gm40271',
+                     'Acer2',
+                     'Dcdc2a',
+                     'Desi1',
+                     'Tacc2',
+                     'Zfp91',
+                     'Srgap3',
+                     'Clcn5',
+                     'Scamp5',
+                     'Slc7a1',
+                     'Cmss1',
+                     'Myo1e',
+                     'Pik3r1',
+                     'Sh3bgrl2',
+                     'Dclk3',
+                     'Myo18a',
+                     'Ephx2',
+                     'Ankrd10',
+                     'Srsf4',
+                     'Pde7a',
+                     'Thra',
+                     'Foxo3',
+                     'Ppl',
+                     'Kmt2c',
+                     'Col4a3',
+                     'Arhgef10l',
+                     'Rbms3',
+                     'Cish',
+                     'Lcn2',
+                     'Chd9',
+                     'Spen',
+                     'Gfod2',
+                     'mt-Nd4l',
+                     'Npas2',
+                     'Mkl1',
+                     'AC149090.1',
+                     'Nrp1',
+                     'Tmcc3',
+                     'Rad51b',
+                     'Gm20732',
+                     'Enah',
+                     'Cnnm1',
+                     'Tigd2',
+                     'Cd2ap',
+                     'Tead1',
+                     'Sipa1l3',
+                     'Psme4',
+                     'Rnf183',
+                     'Ninl',
+                     'Pnpla7',
+                     'Utrn',
+                     'Slc16a10',
+                     'Atp8b1',
+                     'Fam117a',
+                     'Fmn2',
+                     'Zfp950',
+                     'St7',
+                     'Wls',
+                     'Pax2',
+                     'Dnm3',
+                     'Atxn2l',
+                     'Fam20c',
+                     'Arhgef37',
+                     'Snx25',
+                     'Nuak2',
+                     'Ampd3',
+                     'Mboat2',
+                     'Boc',
+                     'Btg1',
+                     'Pnisr',
+                     'Nipa2',
+                     'Dock1',
+                     'Chsy3',
+                     'Tcf7l1',
+                     'Mylip',
+                     'Gstcd',
+                     'Frem2',
+                     'Mgll',
+                     'Rad21',
+                     'Zswim5',
+                     'Lars2',
+                     'Tcf20',
+                     '2810403A07Rik',
+                     'Setbp1',
+                     'Litaf',
+                     'Atp2c1',
+                     'Ddit4l',
+                     'Egfros',
+                     'Csnk1d',
+                     'Adgrl2',
+                     'Rapgef3',
+                     'Cdkn1b',
+                     'Bptf',
+                     'Abcc4',
+                     'Styk1',
+                     'Ptdss2',
+                     'Col4a1',
+                     'Pygb',
+                     'Kctd12',
+                     'Nipbl',
+                     'Rora',
+                     'Stxbp5',
+                     'Abhd3',
+                     'Fam174b',
+                     'Etv6',
+                     'Hipk1',
+                     'Abcc1',
+                     'Arhgap24',
+                     'Cd82',
+                     'Dnajc19',
+                     'Ezh1',
+                     'Gm10964',
+                     'Gmds',
+                     'Gnaq',
+                     'Gorasp2',
+                     'Gtdc1',
+                     'Hist1h1c',
+                     'Kalrn',
+                     'Kank1',
+                     'Lgr4',
+                     'Macf1',
+                     'Myo1d',
+                     'Phf20l1',
+                     'Rp2',
+                     'Secisbp2',
+                     'Slc1a3',
+                     'Soga1',
+                     'Srebf2',
+                     'St3gal6',
+                     'Sytl2',
+                     'Tes',
+                     'Wnt9b',
+                     'Wscd2'))
+
+
+# Find overrepresented motifs in open chromatin regions associated with DEGs
+peaks.dn <- rownames(dn)
+
+# Test enrichment
+# Find motifs over-represented in a given set of genomic features. Computes the number of features containing the motif (observed) 
+# and compares this to the total number of features containing the motif (background) using the hypergeometric test.
+set.seed(1234)
+enriched.motifs.dn <- FindMotifs(
+  object = CDPC_only,
+  features = peaks.dn)
+
+enriched.motifs.dn <- enriched.motifs.dn[which(enriched.motifs.dn$p.adjust<0.01),]
+write.csv(enriched.motifs.dn, "./OMCD_DEGs_dn_enriched_motifs.csv", row.names = T)
+
+
+
+####################### MOTIF ENRICHMENT FOR DOWNREGULATED GENES IN OMCD ########################
+# Filter for peaks associated with OMCD DEGs up (n = 260) from single cell analysis Tfap2a WT vs KO
+up <- mtx %>%
+  filter(gene %in% c('Mrps17',
+                     'Dock10',
+                     'Slc38a9',
+                     'Mcee',
+                     'Olfm1',
+                     'Clk1',
+                     'Slc27a2',
+                     'Glyat',
+                     'Uqcrc2',
+                     'Slc16a2',
+                     'Fkbp2',
+                     'Man2a1',
+                     'Cth',
+                     'Smu1',
+                     'Chchd10',
+                     'Tmbim4',
+                     'Psme1',
+                     'Fth1',
+                     'Gys1',
+                     'Fmo1',
+                     'Trappc3',
+                     'Tmem191c',
+                     'Slc25a4',
+                     'Idh3a',
+                     'Sh3bgrl3',
+                     'Amd2',
+                     'Lamc2',
+                     'Glrx5',
+                     'Phb2',
+                     'Polr2j',
+                     'Rab24',
+                     'Atox1',
+                     'Srsf9',
+                     'Polr2g',
+                     'Snx4',
+                     'Ppib',
+                     'Prpsap2',
+                     'Socs6',
+                     'Baiap2',
+                     'Calm2',
+                     'Tmem213',
+                     'Ndufa7',
+                     'Cox6a1',
+                     'Eif4a3',
+                     'Mcm3ap',
+                     'Psmb4',
+                     'Ndufa11',
+                     'Psmb8',
+                     'Mrpl12',
+                     'Gm26526',
+                     'Cltb',
+                     'Slc25a39',
+                     'Aimp1',
+                     'Hras',
+                     'Nudt4',
+                     'Ifi35',
+                     'Ptprd',
+                     'Ndufb9',
+                     'Ndufa9',
+                     'Vegfb',
+                     'Cyc1',
+                     'Bckdha',
+                     'Psmb10',
+                     'Lgals3',
+                     'Rpl36',
+                     'Aars',
+                     'Aass',
+                     'Atp5a1',
+                     'Cox5a',
+                     'Dbi',
+                     'Bcas2',
+                     'Rpl36al',
+                     'Plin3',
+                     'Rassf8',
+                     'Eif1',
+                     'Ftl1',
+                     'Zfp503',
+                     'Cyba',
+                     'Swi5',
+                     'Prdx2',
+                     'Ndufb6',
+                     'Acss3',
+                     'Sumf1',
+                     'Ndufv1',
+                     'Zmynd11',
+                     'Mrps16',
+                     'Cox5b',
+                     'Gm13305',
+                     'Etfa',
+                     'Sdhd',
+                     'Bcl2',
+                     'Ddt',
+                     'Gm10036',
+                     'Anxa6',
+                     'Ptprg',
+                     'Vdac2',
+                     'Park7',
+                     'Herpud1',
+                     'Atp5d',
+                     'Bsg',
+                     'Kras',
+                     'Epsti1',
+                     'Ndrg1',
+                     'Idh3g',
+                     'Krt8',
+                     'Mrfap1',
+                     'Vdac3',
+                     'Acss1',
+                     'Vps26a',
+                     'Icmt',
+                     'Cyb5a',
+                     'Slc16a7',
+                     'Entpd5',
+                     'Suclg1',
+                     'Iah1',
+                     'Haao',
+                     'S100a1',
+                     'Hagh',
+                     'Phyh',
+                     'Gm4841',
+                     'Cycs',
+                     'Atxn2',
+                     'Aldh2',
+                     'Hspe1',
+                     'Ttc36',
+                     'Ciapin1',
+                     'Dab2',
+                     'Tubb4b',
+                     'Arl2',
+                     'Tspan8',
+                     'H3f3b',
+                     'H2-K1',
+                     'Hoxd8',
+                     'Mrps34',
+                     'Stat1',
+                     'Cabcoco1',
+                     '2410015M20Rik',
+                     'Atp5h',
+                     'Bphl',
+                     'Phactr1',
+                     'Aqp3',
+                     'Ndufs3',
+                     'Eef1d',
+                     'Atp6v0a4',
+                     'Epb41l3',
+                     'Cadm2',
+                     'Nucks1',
+                     'Atp6v1b1',
+                     'Cisd1',
+                     'Kcnc2',
+                     'Atpif1',
+                     'Lgmn',
+                     'Hspa9',
+                     'Hspa8',
+                     'Akr1c19',
+                     'Tmem176a',
+                     'Ecsit',
+                     'Odc1',
+                     'Scnn1b',
+                     'Id2',
+                     'Ces1f',
+                     'Tuba1c',
+                     'Rgs6',
+                     'Rida',
+                     'Mdh1',
+                     'Usp2',
+                     'Myo10',
+                     'Cyp2a4',
+                     'Tsc22d1',
+                     'Dld',
+                     'Mob3b',
+                     'Kif26b',
+                     'Rnpep',
+                     'Plekhb2',
+                     'Dnase1',
+                     'Psmc3',
+                     'Ube2a',
+                     'Pebp1',
+                     'Slc34a1',
+                     'Tmem176b',
+                     'Tmem178',
+                     'Pth1r',
+                     'Atp6v1e1',
+                     'Pcyox1',
+                     'Slc25a3',
+                     'Echs1',
+                     'Psmd7',
+                     'Pgam2',
+                     'Pgk1',
+                     'Stard8',
+                     'Nr1d2',
+                     'Ass1',
+                     'Prdx5',
+                     'Ndufs2',
+                     'Rap1gap',
+                     'Gm26542',
+                     'Ier3',
+                     'Arid5b',
+                     'Krt7',
+                     'Snn',
+                     'Scand1',
+                     'Anxa7',
+                     'Hmgn1',
+                     'Trim7',
+                     'Sdhb',
+                     'Ppp2r2b',
+                     'Csrp2',
+                     'Khk',
+                     'Crybg1',
+                     'Atp5g3',
+                     'Acy3',
+                     'Pycard',
+                     'Ttr',
+                     'Atp5f1',
+                     'Dach1',
+                     'Rhbg',
+                     'Tfap2b',
+                     'Psmd4',
+                     'H2afj',
+                     'Tmem117',
+                     'Cog7',
+                     'Hsd3b2',
+                     'Ndufa12',
+                     'Sod2',
+                     'Slc8a1',
+                     'Clu',
+                     'Nbas',
+                     'Cndp2',
+                     'Atp5b',
+                     'Grid2',
+                     'Per2',
+                     'Pde4d',
+                     'Aldob',
+                     'Gfra1',
+                     'Atp2b2',
+                     'Nr1d1',
+                     'Spock3',
+                     'Slc15a2',
+                     'Egfem1',
+                     'Stc1',
+                     'Kcnh5',
+                     'Dbp',
+                     'Gpx3',
+                     'Il1rapl1',
+                     'Kap',
+                     'Ldhb',
+                     'Ralyl',
+                     'Tef',
+                     'Tmem52b',
+                     'Tbck',
+                     'Rsrp1',
+                     'Ctse',
+                     'Slit2',
+                     'Clcnkb',
+                     'Calb1',
+                     'Mgat4c',
+                     'S100g',
+                     'Rbfox1',
+                     'Cacnb4',
+                     'Kcne1'))
+
+# Find overrepresented motifs in open chromatin regions associated with DEGs
+peaks.up <- rownames(up)
+
+# Test enrichment
+# Find motifs over-represented in a given set of genomic features. Computes the number of features containing the motif (observed) 
+# and compares this to the total number of features containing the motif (background) using the hypergeometric test.
+set.seed(1234)
+enriched.motifs.up <- FindMotifs(
+  object = CDPC_only,
+  features = peaks.up)
+
+enriched.motifs.up <- enriched.motifs.up[which(enriched.motifs.up$p.adjust<0.01),]
+write.csv(enriched.motifs.up, "./OMCD_DEGs_up_enriched_motifs.csv", row.names = T)
+
+
+
+####################### VISUALIZE ENRICHED MOTIFS ###############################
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+
+# SUPPLEMENTARY FIGURE S6A
+enriched.motifs.dn <- read.csv("./OMCD_DEGs_dn_enriched_motifs.csv")
+enriched.motifs.dn<- enriched.motifs.dn %>% 
+  arrange(desc(percent.observed)) 
+
+ggplot(enriched.motifs.dn,
+       aes(x = percent.observed, y = reorder(motif.name, percent.observed)))+
+  geom_point(aes(size = fold.enrichment, colour = p.adjust))+
+  geom_segment(aes(xend=0, yend = motif.name)) +
+  scale_color_viridis_c(option = "F", begin = 0.1, end = 0.9, guide=guide_colorbar(reverse=T)) +
+  scale_size_continuous(range=c(2, 8), breaks = c(1.0, 1.5, 2.0), limits = c(1.0, 2.0)) +
+  theme_minimal() + 
+  xlab("Percent observed") +
+  ylab(NULL) + 
+  ggtitle("Enriched Motifs DEGs decreased expression")
+
+
+# SUPPLEMENTARY FIGURE S6B
+enriched.motifs.up <- read.csv("./OMCD_DEGs_up_enriched_motifs.csv")
+enriched.motifs.up<- enriched.motifs.up %>% 
+  arrange(desc(percent.observed))
+
+ggplot(enriched.motifs.up,
+       aes(x = percent.observed, y = reorder(motif.name, percent.observed)))+
+  geom_point(aes(size = fold.enrichment, colour = p.adjust))+
+  geom_segment(aes(xend=0, yend = motif.name)) +
+  scale_color_viridis_c(option = "F", begin = 0.1, end = 0.9, guide=guide_colorbar(reverse=T)) +
+  scale_size_continuous(range=c(2, 8), breaks = c(1.0, 1.5, 2.0, 2.5), limits = c(1.0, 2.5)) +
+  theme_minimal() + 
+  xlab("Percent observed") +
+  ylab(NULL) + 
+  ggtitle("Enriched Motifs DEGs increased expression")
+
+
+
+
+
+

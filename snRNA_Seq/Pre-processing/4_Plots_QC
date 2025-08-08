@@ -1,0 +1,39 @@
+library(Seurat)
+library(psych)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+######################################################## QC VISUALIZATION #####################################################################
+
+# Load data
+AP2 <- readRDS("./AP2.rds")
+
+
+
+# Calculate mean reads
+head(AP2@meta.data)
+colMeans(AP2@meta.data["nCount_RNA"])
+colMeans(AP2@meta.data["nFeature_RNA"])
+colMeans(AP2@meta.data["percent.mt"])
+
+library(data.table)
+data_to_write_out <- as.data.frame(as.matrix(AP2@meta.data))
+write.table(x = data_to_write_out, file = "metadata_AP2.txt")
+
+
+
+# QC visualization
+Idents(AP2) <- "group"
+
+# SUPPLEMENTARY FIGURE S5C
+VlnPlot(AP2, features = c("nCount_RNA"), pt.size = 0, stack = F, cols = c("#B2C5C9", "#345063")) + geom_boxplot(width = 0.2)
+# SUPPLEMENTARY FIGURE S5D
+VlnPlot(AP2, features = c("nFeature_RNA"), pt.size = 0, stack = F, cols = c("#B2C5C9", "#345063")) + geom_boxplot(width = 0.2)
+# SUPPLEMENTARY FIGURE S5E
+VlnPlot(AP2, features = c("percent.mt"), pt.size = 0, stack = F, cols = c("#B2C5C9", "#345063")) + geom_boxplot(width = 0.2)
+

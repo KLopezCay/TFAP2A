@@ -1,0 +1,39 @@
+library("DESeq2")
+library("ggplot2")
+
+######################################### DIFFERENTIAL GENE EXPRESSION WHOLE KIDNEY SAMPLES RNA SEQ ##########################################
+
+# countData = Raw counts for each gene in each sample from RNAseq
+# metaData = Sample and group information
+
+# Load data
+countData <- cnt_mtx 
+head(countData)
+
+metaData <- meta_data
+head(metaData)
+
+# Transform into DESeq Dataset grouped WT vs KO
+dds <- DESeqDataSetFromMatrix(countData=countData, 
+                              colData=metaData, 
+                              design=~Group, 
+                              tidy = TRUE)
+
+# Export normalized counts
+dds <- estimateSizeFactors(dds)
+counts <- counts(dds, normalized=TRUE)
+write.csv(counts, file="norm_counts.csv")
+
+# DE analysis 
+ddsDE <- DESeq(dds)
+head(ddsDE)
+
+# Export results from DE analysis 
+res <- results(ddsDE, contrast=c("Group","KO","WT"))
+head(results(ddsDE, tidy=TRUE))
+summary(res)
+
+# Save
+# SUPPLEMENTARY TABLE S15
+write.csv(res, file="DE_results_unfiltered_KOvsWT.csv")
+

@@ -1,0 +1,51 @@
+# Script based on 
+# and https://stuartlab.org/signac/articles/pbmc_vignette.html
+
+
+################################# GENE ACTIVITY ##############################################
+
+# Quantification of activity of each gene in the genome by assessing chromatin accessibility associated with gene
+# extracts gene coordinates and extends them to include the 2kb upstream region 
+# (promoter accessibility often correlated with gene expression)
+
+library(Seurat)
+library(Signac)
+
+
+#Load data
+Ki67 <- readRDS("./Analysis_WT_Multiome/Pre-processing/Ki67_clustered_multiplets_removed.Rds")
+head(Ki67@meta.data)
+Ki67
+
+
+# Create gene activity matrix
+DefaultAssay(Ki67) <- "ATAC"
+gene.activities <- GeneActivity(Ki67,
+                                assay = "ATAC",
+                                verbose = T)
+
+# Add gene activity matrix to Seurat Object as a new assay and normalize it
+Ki67[['activity']] <- CreateAssayObject(counts = gene.activities)
+Ki67 <- NormalizeData(object = Ki67,
+                      assay = "activity",
+                      normalization.method = "LogNormalize",
+                      scale.factor = median(Ki67$nCount_RNA)
+                      )
+
+# Visualize gene activity
+DefaultAssay(Ki67) <- "activity"
+FeaturePlot(Ki67,
+            reduction = "wnn.umap",
+            features = c("Lrp2", "Aqp2", "Tfap2a", "Tfap2b"),
+            pt.size = 0.5,
+            ncol = 2
+            )
+
+# Save Clustered Object incl. gene activity
+saveRDS(Ki67,"Ki67_clustered_multiplets_removed_activity.Rds")
+
+
+
+
+
+

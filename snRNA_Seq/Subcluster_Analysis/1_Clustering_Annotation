@@ -1,0 +1,67 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(magrittr)
+library(dplyr)
+
+#################################################### SUBCLUSTER CD-PC ##################################################
+
+# Load data
+AP2 <- readRDS("./snRNA_Seq/Pre-processing/AP2.rds") # replace with full path
+
+
+# Subset CD-PC cluster
+DefaultAssay(AP2) <- "integrated"
+Idents(AP2) = "celltype"
+
+AP2_sub <- subset(AP2, idents = "CD-PC")
+
+# Find cluster
+AP2_sub <- RunUMAP(AP2_sub, reduction = "pca", dims = 1:30, verbose = TRUE)
+AP2_sub <- FindNeighbors(AP2_sub, dims = 1:13, k.param = 5)
+AP2_sub <- FindClusters(AP2_sub, resolution = 0.2)
+
+DimPlot(AP2_sub, reduction = "umap")
+
+
+
+#################################################### SUBCLUSTER ANNOTATION ##################################################
+
+# Identify subcluster based on marker gene expression
+DotPlot(AP2_sub,
+        cols = c("#B2C5C9", "#19525F"),
+        assay = "RNA",
+        features = c("Kcne1", "Scnn1b", "Hsd11b2",
+                     "Kcnj1", "Ccnd1", "Mcoln3", "Btc",
+                     "Tspan1", "Grem2", "Aqp2",
+                     "Aqp4", "Phactr1", "Ces1d", "Fxyd4", "Rasl11a", "Nenf",
+                     "Cryab", "Nupr1", "Tspan6", "Bcat1",
+                     "Krt5", "Upk1b")) + RotatedAxis()
+
+# Rename cluster
+AP2_sub <- RenameIdents(AP2_sub, 
+                        `0` = "IMCD3",
+                        `1` = "OMCD",
+                        `2` = "CCD",
+                        `3` = "IMCD1",
+                        `4` = "IMCD2")
+
+# Add "sub.celltype" to meta data
+AP2_sub[["sub.celltype"]] <- Idents(object = AP2_sub)
+head(AP2_subb@meta.data)
+
+
+# Save
+saveRDS(AP2_sub, "./AP2_sub.rds")
+
+
+
+
+
+
+

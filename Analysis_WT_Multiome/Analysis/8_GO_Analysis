@@ -1,0 +1,122 @@
+# ClusterProfiler for gene ontology and network analysis of differentially expressed genes
+# Adapted from http://yulab-smu.top/clusterProfiler-book/chapter12.html
+
+library(clusterProfiler)
+library(magrittr)
+library(DOSE)
+library(AnnotationHub)
+library(enrichplot)
+library(ggplot2)
+library(org.Mm.eg.db)
+library(pathview)
+library(GOSemSim)
+library(RColorBrewer)
+library(ggraph)
+library(igraph)
+library(forcats)
+
+############################################## GENE ONTOLOGY ANALYSIS ##############################################################################
+
+# Data import
+# Peaks that contain Tfap2a motif and are differentially accessible in CD-PC (already filtered for fc > 2)
+d <- read.csv("./CD-PC_DARs_with_Tfap2a_motif.csv")
+head(d)
+
+# Extract gene names associated with DARs and remove multiples
+d <- d[, 8]
+d <- unique(d)
+
+# 546 genes associated with 625 peaks
+write.table(d, file = "CD-PC_DARs_Gene_names_w_Tfap2a_motif")
+
+
+# Pathway analysis of genes associated with CD-PC DAR that contain Tfap2a motif in their DNA seq
+# for Biological Processes (BP), Cellular Components (CC), and Molecular funtions (MF)
+
+egoBP_sn <- enrichGO(gene     = d,
+                OrgDb         = org.Mm.eg.db,
+                keyType       = "SYMBOL",
+                ont           = "BP",
+                pAdjustMethod = "fdr",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05,
+                minGSSize     = 2, 
+                pool = F)
+
+egoCC_sn <- enrichGO(gene     = d,
+                     OrgDb         = org.Mm.eg.db,
+                     keyType       = "SYMBOL",
+                     ont           = "CC",
+                     pAdjustMethod = "fdr",
+                     pvalueCutoff  = 0.05,
+                     qvalueCutoff  = 0.05,
+                     minGSSize     = 2, 
+                     pool = F)
+
+egoMF_sn <- enrichGO(gene     = d,
+                     OrgDb         = org.Mm.eg.db,
+                     keyType       = "SYMBOL",
+                     ont           = "MF",
+                     pAdjustMethod = "fdr",
+                     pvalueCutoff  = 0.05,
+                     qvalueCutoff  = 0.05,
+                     minGSSize     = 2, 
+                     pool = F)
+
+## Save enriched pathways
+write.table(egoBP_sn, "GO-BP_putative_Tfap2a_target_genes_small.txt", sep = "\t", row.names = TRUE) # SUPPLEMENTARY TABLE S6
+write.table(egoCC_sn, "GO-CC_putative_Tfap2a_target_genes_small.txt", sep = "\t", row.names = TRUE)
+write.table(egoMF_sn, "GO-MF_putative_Tfap2a_target_genes_small.txt", sep = "\t", row.names = TRUE)
+
+#############################################################################################
+
+## Visualization GO analysis
+# Get the similarity matrix
+egoBP_sn_sim <- pairwise_termsim(egoBP_sn)
+egoCC_sn_sim <- pairwise_termsim(egoCC_sn)
+egoMF_sn_sim <- pairwise_termsim(egoMF_sn)
+
+
+# Dotplot for top GO BP
+# FIGURE 2D
+BPstoplot <- c('urogenital system development',
+               'regulation of body fluid levels',
+               'renal system development',
+               'kidney development',
+               'cell junction assembly',
+               'actin filament organization',
+               'positive regulation of cell adhesion',
+               'regulation of metal ion transport',
+               'wound healing',
+               'epithelial tube morphogenesis',
+               'axonogenesis',
+               'regulation of developmental growth',
+               'negative regulation of locomotion',
+               'cell-substrate adhesion',
+               'regulation of cellular component size',
+               'myeloid cell differentiation',
+               'Wnt signaling pathway',
+               'regulation of cell growth',
+               'cell-cell signaling by wnt',
+               'epithelial cell development',
+               'mesenchyme development',
+               'skin development',
+               'regulation of GTPase activity',
+               'epidermis development',
+               'exocytosis')
+
+ggplot(egoBP_sn_sim, showCategory = BPstoplot, 
+       aes(GeneRatio, fct_reorder(Description, GeneRatio))) + 
+  geom_segment(aes(xend=0, yend = Description)) +
+  geom_point(aes(color=qvalue, size = Count)) +
+  scale_color_viridis_c(option = "F", begin = 0.1, end = 0.9, guide=guide_colorbar(reverse=T)) +
+  scale_size_continuous(range=c(4, 8), breaks = c(15, 20, 25, 30), limits = c(15, 30)) +
+  theme_minimal() + 
+  xlab("Gene Ratio") +
+  ylab(NULL) + 
+  ggtitle("Enriched BP")
+
+
+save.image("./Env_Enriched_GO-BP_putative_targets_small.RData")
+
+

@@ -1,0 +1,48 @@
+library(Seurat)
+library(psych)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+set.seed(1234)
+
+################################# Visualize expression domains of identified targets ###########################################
+
+# Load data
+AP2 <- readRDS("./snRNA_Seq/Pre-processing/AP2.rds") # replace with full path
+DefaultAssay(WT) <- "RNA"
+
+# Select WT cells
+WT=rownames(AP2@meta.data[!(AP2@meta.data$group %in% c("KO")),])
+
+# DEGs down in WK (bulk seq) and OMCD (snRNA-seq) and predicted primary targets (associated peaks contain Tfap2a motif)
+targets <- c('Cldn8', 'Fam117a', 'Fam174b', 'Kctd12', 'Klhdc8a', 'Lcn2', 'Muc20', 'Ppl', 'Slc7a1', 'Wnt9b')
+
+# Plot target genes
+# FIGURE 7
+p <- FeaturePlot(AP2,
+                 cells = WT,
+                 features = targets,
+                 reduction = "umap",
+                 pt.size = 0.5, 
+                 order= T, 
+                 cols = c("grey", "#023e62", "#01253a"),
+                 combine = FALSE)
+
+for(i in 1:length(p)) {
+  p[[i]] <- p[[i]] + NoLegend() + NoAxes() + 
+    theme(plot.title = element_text(size = 10, face = "bold"))
+}
+
+
+# Cluster of all plots
+cowplot::plot_grid(plotlist = p, ncol = 5)
+
+# Single plots
+p
+
+

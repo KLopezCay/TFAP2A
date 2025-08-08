@@ -1,0 +1,96 @@
+
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+set.seed(1234)
+
+################################################################### CREATE SEURAT OBJECTS #############################################################################
+
+# Load data
+CTL1.data <- Read10X(data.dir = "./raw_feature_bc_matrix_WT1/")
+KO1.data <- Read10X(data.dir = "./raw_feature_bc_matrix_KO1/")
+CTL2.data <- Read10X(data.dir = "./raw_feature_bc_matrix_WT2/")
+KO2.data <- Read10X(data.dir = "./raw_feature_bc_matrix_KO2/")
+
+# Create seurat objects
+CTL1 <- CreateSeuratObject(counts = CTL1.data, project = "Tfap2aWT1", min.cells = 3, min.features = 500)
+KO1 <- CreateSeuratObject(counts = KO1.data, project = "Tfap2aKO1", min.cells = 3, min.features = 500)
+CTL2 <- CreateSeuratObject(counts = CTL2.data, project = "Tfap2aWT2", min.cells = 3, min.features = 500)
+KO2 <- CreateSeuratObject(counts = KO2.data, project = "Tfap2aKO2", min.cells = 3, min.features = 500)
+
+# Add feature of mitochondrial percentage
+CTL1[["percent.mt"]] <- PercentageFeatureSet(CTL1, pattern = "^mt-")
+KO1[["percent.mt"]] <- PercentageFeatureSet(KO1, pattern = "^mt-")
+CTL2[["percent.mt"]] <- PercentageFeatureSet(CTL2, pattern = "^mt-")
+KO2[["percent.mt"]] <- PercentageFeatureSet(KO2, pattern = "^mt-")
+
+
+# Visualize QC metrics in a violin plot
+VlnPlot(CTL1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(KO1, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(CTL2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(KO2, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+
+# Visualize QC metrics in scatter plot
+# to visualize feature-feature relationships
+plot1 <- FeatureScatter(CTL1, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(CTL1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1 + plot2
+
+plot3 <- FeatureScatter(KO1, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot4 <- FeatureScatter(KO1, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot3 + plot4
+
+plot5 <- FeatureScatter(CTL2, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot6 <- FeatureScatter(CTL2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot5 + plot6
+
+plot7 <- FeatureScatter(KO2, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot8 <- FeatureScatter(KO2, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot7 + plot8
+
+# Select cells for analysis based on QC
+CTL1 <- subset(CTL1, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+KO1 <- subset(KO1, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+CTL2 <- subset(CTL2, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+KO2 <- subset(KO2, subset = nFeature_RNA > 500 & nFeature_RNA < 4000 & percent.mt < 5)
+
+
+# Merge data to one object
+CTL = merge(CTL2, CTL1)
+KO = merge(KO1, KO2)
+AP2 = merge(CTL, KO)
+
+
+# Normalize data
+AP2 <- SplitObject(AP2, split.by = "orig.ident")
+AP2 <- lapply(X = AP2, FUN = function(x) {
+  x <- NormalizeData(x, normalization.method = "LogNormalize", scale.factor = 10000)
+  x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+
+# Perform integration
+AP2 <- FindIntegrationAnchors(object.list = AP2, dims = 1:30)
+AP2 <- IntegrateData(anchorset = Merge, dims = 1:30)
+
+DefaultAssay(AP2) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+AP2 <- ScaleData(AP2, verbose = TRUE)
+AP2 <- RunPCA(AP2, npcs = 30, verbose = TRUE)
+
+# TSNE; UMAP; Clustering
+AP2 <- RunTSNE(AP2, reduction = "pca", dims = 1:30, verbose = TRUE)
+AP2 <- RunUMAP(AP2, reduction = "pca", dims = 1:30, verbose = TRUE)
+AP2 <- FindNeighbors(AP2, reduction = "pca", dims = 1:30, verbose = TRUE)
+AP2 <- FindClusters(AP2, resolution = 0.5, verbose = TRUE)
+
+# Save file 
+saveRDS(AP2, "./AP2.rds")

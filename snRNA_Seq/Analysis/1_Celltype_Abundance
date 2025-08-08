@@ -1,0 +1,59 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+####################################### CALCULATION ABUNDANCE BROAD CELL TYPES #################################################
+
+############################################# SUPPLEMENTARY TABLE S11 ##########################################################
+
+# Load data
+AP2 <- readRDS("./snRNA_Seq/Pre-processing/AP2.rds") # replace with full path
+
+
+# Proportion of cell types  
+head(AP2_sub@meta.data)
+Idents(AP2) <- "celltype"
+
+# by sample
+freq_table_AP <- prop.table(x = table(AP2@active.ident, AP2@meta.data[, "orig.ident"]),
+                               margin = 2)
+write.table(freq_table,"freqtable_AP2.txt",sep="\t",row.names=TRUE)
+
+# by group
+freq_table_AP_group <- prop.table(x = table(AP2@active.ident, AP2@meta.data[, "group"]),
+                            margin = 2)
+write.table(freq_table,"freqtable_AP2_group.txt",sep="\t",row.names=TRUE)
+
+barplot(freq_table_AP_group, legend.text = T, 
+        col = c("#B0C5DE", #PT
+                "#668b94", #TAL 
+                "#4d716c", #EC
+                "#5C359A", #Damaged
+                "#501444", #CNT
+                "#7F2350", #DCT
+                "#2F1437", #CD-PC
+                "#19525F", #tL
+                "#C9987B", #CD-IC
+                "#81bdb5", #IntC
+                "#483340", #DMEP
+                "#05131b", #Podo
+                "#BC6B59"),#Immune  
+        width = 0.2, 
+        beside = F,
+        horiz = T) 
+
+
+
+# Number of cells per cluster
+table(AP2@meta.data$celltype)
+table(Idents(AP2))
+cellno <- table(AP2@meta.data$celltype, AP2@meta.data$orig.ident)
+
+write.table(cellno,"cellno_AP2.txt",sep="\t",row.names=TRUE)
+
+

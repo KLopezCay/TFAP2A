@@ -1,0 +1,114 @@
+ibrary(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+############################################ CELL TYPE ANNOTATION ##########################################################
+
+# Load data
+AP2 <- readRDS("./AP2.rds")
+
+# Check expression of marker genes in cluster to assign cell types
+DefaultAssay(AP2) <- "RNA"
+MarkerPlot <- DotPlot(AP2,
+                      cols = c("#B2C5C9", "#19525F"),
+                      assay = "RNA",
+                      features = c("Podxl",                             #Podocytes
+                                   "Lrp2",                              #Proximal Tubule (PT) All Segments
+                                   "Aqp1",                              #Thin Limb
+                                   "Umod", "Slc12a1",                   #Thick Ascending Limb (TAL)
+                                   "Slc12a3",                           #Distal Convoluted Tubule (DCT)
+                                   "Calb1",                             #Connecting Tubule (CNT)
+                                   "Hsd11b2", "Aqp2", "Scnn1g",         #Collecting Duct Principal Cells (CD-PC)
+                                   "Upk1b",                             #Deep Medullary Epithelium of Pelvis/Urothelium
+                                   "Slc4a1",                            #Collecting Duct Intercalated Cells Type A (CD-IC)
+                                   "Slc26a4",                           #Collecting Duct Intercalated Cells Type B
+                                   "Foxi1",                             #Collecting Duct Intercalated Cells Both
+                                   "Pecam1", "Flt1",                    #Endothelium/Vasculature
+                                   "Col1a2",                            #Interstitial Cells
+                                   "Tyrobp"                             #Immune Cells
+                                   )) + RotatedAxis()           
+ MarkerPlot
+
+
+
+# Annotate cluster to broad kidney cell types based on marker expression
+AP2 <- RenameIdents(AP2, `0` = "PT", 
+                         `1` = "PT", 
+                         `2` = "PT", 
+                         `3` = "PT", 
+                         `4` = "TAL", 
+                         `5` = "PT", 
+                         `6` = "TAL", 
+                         `7` = "Endothelium", 
+                         `8` = "TAL", 
+                         `9` = "Damaged", 
+                        `10` = "CNT", 
+                        `11` = "DCT", 
+                        `12` = "CD-PC", 
+                        `13` = "tL", 
+                        `14` = "CD-PC", 
+                        `15` = "CD-IC",
+                        `16` = "Endothelium",
+                        `17` = "Damaged", 
+                        `18` = "TAL", 
+                        `19` = "CD-IC", 
+                        `20` = "InterstitialCells", 
+                        `21` = "DMEP", 
+                        `22` = "tL",
+                        `23` = "PT", 
+                        `24` = "Podocytes",
+                        `25` = "ImmuneCells",
+                        `26` = "TAL")
+
+# Add "celltype" to meta data
+AP2[["celltype"]] <- Idents(object = AP2)
+
+
+
+# Add new groups to metadata 
+# Create new group "WT" or "KO"  
+head(AP2@meta.data)
+Idents(AP2) = "integrated_snn_res.0.5"
+AP2@meta.data$group = as.vector(unlist(lapply(AP2$orig.ident, function(x) substr(x,nchar(x)-2,nchar(x)-1))))
+unique(AP2@meta.data$group)
+
+# Create group_clust
+AP2@meta.data$group_clust = paste0(AP2@meta.data$group,"_",AP2@meta.data$integrated_snn_res.0.5)
+unique(AP2$group_clust)
+
+# Create orig_ct
+Idents(AP2) = "celltype"
+AP2@meta.data$celltype=Idents(AP2)
+AP2@meta.data$orig_ct=paste0(AP2@meta.data$group,"_",AP2@meta.data$celltype)
+unique(AP2$orig_ct)
+
+
+# Reorder cluster along nephron
+levels(AP2)
+my_levels <- c( "Damaged",
+                "ImmuneCells",
+                "InterstitialCells",
+                "Endothelium",
+                "CD-IC",
+                "DMEP",
+                "CD-PC",
+                "CNT",
+                "DCT",
+                "TAL",
+                "tL",
+                "PT", 
+                "Podocytes")
+
+factor(Idents(AP2), levels= my_levels)
+Idents(AP2) <- factor(Idents(AP2), levels= my_levels)
+levels(AP2)
+
+# Save file 
+saveRDS(AP2, "./AP2.rds")
+
+

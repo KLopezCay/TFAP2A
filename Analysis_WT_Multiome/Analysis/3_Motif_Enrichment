@@ -1,0 +1,86 @@
+# Script based on 
+# and https://stuartlab.org/signac/articles/pbmc_vignette.html
+# and https://stuartlab.org/signac/articles/motif_vignette 
+
+################################################ MOTIF ENRICHMENT ################################################
+# perform DNA sequence motif analysis
+# examine the accessible regions of each cell to determine enriched motifs
+# finding overrepresented motifs in a set of differentially accessible peaks
+
+
+library(Signac)
+library(Seurat)
+library(JASPAR2020)
+library(TFBSTools)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(patchwork)
+library(ggseqlogo)
+library(chromVAR)
+
+set.seed(1234)
+
+# Load data
+Ki67 <- readRDS("./Ki67_clustered_multiplets_removed_activity.Rds")
+DefaultAssay(Ki67) <- "ATAC"
+
+# Use without integrated assay and activity assay to reduce size
+Ki67[["integrated"]] <- NULL
+Ki67[["activity"]] <- NULL
+
+# Get a list of motif position frequency matrices from the JASPAR database
+pfm <- getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE))
+
+# Add motif information
+Ki67 <- AddMotifs(
+  object = Ki67,
+  genome = BSgenome.Mmusculus.UCSC.mm10,
+  pfm = pfm)
+
+# Save Clustered Object incl. Motif Object
+saveRDS(Ki67,"Ki67_RNA_ATAC_motifs.Rds")
+
+
+# Find overrepresented motifs in DARs
+# Search for DNA motifs that are overrepresented in a set of peaks that are differentially accessible between cell types
+
+# Load DARs in CD-PC cluster generated in "Script_DAR_CD-PC"
+da_peaks <- read.csv("./Ki67_DAR_CD-PC_logFC0.25_minpct0.05_padj0.01.csv",
+                     header = T, row.names = 1)
+top_da_peaks <- rownames(da_peaks[da_peaks$p_val < 0.005, ])
+
+# Test enrichment
+enriched.motifs <- FindMotifs(
+  object = Ki67,
+  features = top_da_peaks)
+
+enriched.motifs <- enriched.motifs[which(enriched.motifs$p.adjust<0.05),]
+
+# Save
+# SUPPLEMENTARY TABLE S2
+write.csv(enriched.motifs, "./Ki67_enriched_motifs_CD-PC.csv", row.names = T)
+
+
+
+# Visualize enriched motifs
+# FIGURE 2A
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+
+filtered_motifs <- dplyr::filter(enriched.motifs, fold.enrichment > 1.5)
+filtered_motifs <- filtered_motifs %>% 
+  arrange(desc(percent.observed)) %>%
+  slice(1:20)
+
+ggplot(filtered_motifs,
+       aes(x = percent.observed, y = reorder(motif.name, percent.observed)))+
+  geom_point(aes(size = fold.enrichment))+
+  geom_segment(aes(xend=0, yend = motif.name), ) +
+  scale_size_continuous(range=c(2, 8), breaks = c(1.5, 2.5, 3.5), limits = c(1.5, 3.5)) +
+  theme_minimal() + 
+  xlab("Percent observed") +
+  ylab(NULL) + 
+  ggtitle("Enriched Motifs")
+

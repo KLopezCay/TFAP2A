@@ -1,0 +1,80 @@
+
+
+############################ GENES EXPRESSED IN CD-PC WITH TFAP2A MOTIF IN ASSOCIATED PEAKS ###########################
+
+# find genes that contain Tfap2a motif in their associated open chromatin regions
+
+library(Signac)
+library(Seurat)
+library(JASPAR2020)
+library(TFBSTools)
+
+# Load data
+Ki67 <- readRDS("./Ki67_clustered_multiplets_removed_activity.Rds")
+DefaultAssay(Ki67) <- "ATAC"
+Idents(Ki67) <- "broad_celltype"
+
+# Subset CD-PC
+CDPC_only <- subset(Ki67, idents= "CD-PC")
+
+# Get a list of motif position frequency matrices from the JASPAR database
+pfm <- getMatrixSet(
+  x = JASPAR2020,
+  opts = list(collection = "CORE", tax_group = 'vertebrates', all_versions = FALSE))
+
+# Scan the DNA sequence of each peak for the presence of each motif
+# returns a table indicating whether a motif (all motifs = columns) is present in a peak (all peaks = rows)
+motif.matrix <- CreateMotifMatrix(
+  features = granges(CDPC_only),
+  pwm = pfm,
+  genome = 'mm10',
+  use.counts = FALSE)
+
+mtx = as.data.frame(as.matrix(motif.matrix))
+
+
+# Filter peaks for presence of Tfap2a motifs
+# Motifs for Tfap2a
+# MA0810.1 = TFAP2A(var.2)
+# MA0872.1 = TFAP2A(var.3)
+# MA0003.4 = TFAP2A
+TFAP2A <- subset(mtx, MA0810.1 == 'TRUE' | MA0872.1 == 'TRUE' | MA0003.4 == 'TRUE')
+
+# Remove columns for all other motifs
+TFAP2A = TFAP2A[, c("MA0003.4","MA0810.1","MA0872.1") ]
+
+# Identify closest feature
+# Finds the closest gene to each of the peaks 
+cf <- ClosestFeature(CDPC_only, rownames(TFAP2A))
+TFAP2A <- cbind(TFAP2A, gene=cf$gene_name, gene_id=cf$gene_id,distance=cf$distance)
+head(TFAP2A)
+
+# Save table with all peaks containing at least 1 of 3 Tfap2a motifs
+write.csv(TFAP2A, "./Peaks_with_Tfap2a_motif.csv", row.names = T)
+
+# Extract gene names from list of genes with Tfap2a motif
+genes <- TFAP2A[, 4]
+genes <- unique(genes)
+
+write.csv(genes, file = "Gene_names_w_Tfap2a_motif")
+
+
+# Get a list of genes expressed in at least 10 % of CD-PC
+genes.to.keep <- Matrix::rowSums(CDPC_only@assays$RNA@counts > 0) >= floor(0.1 * ncol(CDPC_only@assays$RNA@counts))
+counts.sub <- CDPC_only@assays$RNA@counts[genes.to.keep,]
+count_matrix = as.data.frame(as.matrix(counts.sub))
+
+# Extract gene names from list of genes expressed in CD-PC
+library(tidyverse)
+count_matrix <- rownames_to_column(count_matrix,var = "Gene")
+genes_CDPC <- count_matrix[, "Gene"]
+
+write.csv(genes_CDPC, file = "Genes_expressed_in_CDPC")
+
+
+# Filter genes with motif for genes expressed in CD-PC
+genes_final <- genes[genes %in% c(genes_CDPC)]
+
+write.csv(genes_final, file = "Genes_expressed_in_CDPC_containing_tfap2a_motif")
+
+

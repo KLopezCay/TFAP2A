@@ -1,0 +1,55 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(magrittr)
+library(dplyr)
+
+
+############################ DIFFERENTIAL GENE EXPRESSION WT vs KO IN CD-PC SUBCLUSTER #########################################
+
+############################ SUPPLEMENTARY TABLE S12 ##########################################################
+
+# Load data
+AP2_sub <- readRDS("./AP2_sub.rds")
+
+# Add orig_ct_sub to metadata
+AP2_sub@meta.data$sub.celltype=Idents(AP2_sub)
+AP2_sub@meta.data$orig_ct_sub=paste0(AP2_sub@meta.data$group,"_",AP2_sub@meta.data$sub.celltype)
+head(AP2_sub@meta.data)
+
+Idents(AP2_sub) = "orig_ct_sub"
+
+
+# Differentail expression analysis CD-PC subcelltypes
+DE.genes.list=list()
+num.de=data.frame(matrix(ncol=1, nrow=length(unique(AP2_sub$sub.celltype))))
+rownames(num.de) = unique(AP2_sub$sub.celltype)
+
+for(clust in unique(AP2_sub$sub.celltype)){
+  DE.genes.list[[clust]]=FindMarkers(AP2_sub,ident.1 = paste0("KO_",clust), ident.2 = paste0("WT_",clust), 
+                                     min.pct = 0.01, logfc.threshold = 0.25, assay = "RNA")
+  print(clust)
+  num.de[clust,]=length(rownames(DE.genes.list[[clust]][DE.genes.list[[clust]]$p_val<0.05,]))  
+  print(num.de[clust,])
+}
+
+colnames(num.de)=c("num")
+barplot(num.de$num, names.arg = unique(AP2_sub$orig_ct_sub))
+barplot(num.de$num, names.arg = unique(AP2_sub$sub.celltype))
+
+# Save tables
+# replace "cluster" with subclustername accordingly
+write.table(DE.genes.list[["cluster"]], 
+            file="./DEGenes_cluster.txt", 
+            row.names=T, col.names=NA, quote=F, sep="\t")
+
+
+
+
+
+

@@ -1,0 +1,26 @@
+# Script based on
+# https://github.com/stuart-lab/signac/issues/255
+
+####################################### GENES IN CD-PC WITH TFAP2A MOTIF IN ASSOCIATED DARs ####################################################
+
+# find CD-PC DARs that contain Tfap2a motif 
+
+# Load data
+Ki67 <- readRDS("./Ki67_RNA_ATAC_motifs_chromvar_new.Rds")
+# DARs identified in CD-PC vs other cell types
+da_peaks <- read.csv("./Ki67_DAR_CD-PC_logFC0.25_minpct0.05_padj0.01.csv", row.names = 1, header = T)
+# Peaks containing Tfap2a motif
+Tfap2a_peaks <- read.csv("./Peaks_with_Tfap2a_motif.csv", row.names = 1, header = T)
+
+# Select DARs containing Tfap2a motif
+Tfap2a_peaks_final <- list(da_peaks, Tfap2a_peaks)
+Tfap2a_peaks_final <- Reduce(intersect, lapply(Tfap2a_peaks_final, rownames))
+Tfap2a_peaks_final <- da_peaks[Tfap2a_peaks_final,]
+
+# Filter for DARs with foldchange > 2
+Peaks_final <- dplyr::filter(Tfap2a_peaks_final, avg_log2FC > 2)
+
+# Save
+# SUPPLEMENTARY TABLE S5
+write.csv(Peaks_final, "./CD-PC_DARs_with_Tfap2a_motif.csv", row.names = T)
+

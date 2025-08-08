@@ -1,0 +1,45 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+
+############################# DIFFERENTIALLY EXPRESSED GENES WT vs KO ####################################
+
+############################# SUPPLEMENTARY TABLE S12 ####################################################
+
+# Load data
+AP2 <- readRDS("./snRNA_Seq/Pre-processing/AP2.rds") # replace with full path
+
+DefaultAssay(AP2) <- "RNA"
+Idents(AP2) = "orig_ct"
+
+
+# Differential expression analysis broad cell types
+DE.genes.list=list()
+num.de=data.frame(matrix(ncol=1, nrow=length(unique(AP2$celltype))))
+rownames(num.de) = unique(AP2$celltype)
+
+for(clust in unique(AP2$celltype)){
+  DE.genes.list[[clust]]=FindMarkers(AP2,ident.1 = paste0("KO_",clust), ident.2 = paste0("WT_",clust), 
+                                     min.pct = 0.05, logfc.threshold = 0.25, assay = "RNA")
+  print(clust)
+  num.de[clust,]=length(rownames(DE.genes.list[[clust]][DE.genes.list[[clust]]$p_val<0.05,]))  
+  print(num.de[clust,])
+}
+
+colnames(num.de)=c("num")
+barplot(num.de$num, names.arg = unique(AP2$orig_ct))
+barplot(num.de$num, names.arg = unique(AP2$celltype))
+
+# Save
+# insert cluster name accordingly
+write.table(DE.genes.list[["cluster"]], 
+            file="./DEGenes_cluster.txt", 
+            row.names=T, col.names=NA, quote=F, sep="\t")
+
+
+

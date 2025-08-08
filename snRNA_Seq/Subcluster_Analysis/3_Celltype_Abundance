@@ -1,0 +1,54 @@
+library(Seurat)
+library(cowplot)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+library(ggrepel)
+library(stringi)
+library(utils)
+library(magrittr)
+library(dplyr)
+
+############################## CALCULATION ABUNDACE OF CD-PC SUBCELLTYPES ##########################################
+
+############################## SUPPLEMENTARY TABLE S11 ##########################################################
+
+# Load data
+AP2_sub <- readRDS("./AP2_sub.rds")
+
+
+# Proportion of cell types  
+head(AP2_sub@meta.data)
+Idents(AP2_sub) <- "sub.celltype"
+
+# by sample
+freq_table_APsub <- prop.table(x = table(AP2_sub@active.ident, AP2_sub@meta.data[, "orig.ident"]),
+                         margin = 2)
+write.table(freq_table_APsub,"freqtable_AP2_sub.txt",sep="\t",row.names=TRUE)
+
+# by group
+freq_table_APsub_group <- prop.table(x = table(AP2_sub@active.ident, AP2_sub@meta.data[, "group"]),
+                               margin = 2)
+
+barplot(freq_table_APsub_group, legend.text = F, 
+        col = c("#99B2B8", #IMCD3
+                "#5B1B42", #OMCD
+                "#D6C2B5", #CCD 
+                "#7798A0", #IMCD1
+                "#465E64"),#IMCD2  
+        width = 0.2, 
+        beside = F,
+        horiz = T) 
+
+
+
+# Number of cells per cluster
+table(AP2_sub@meta.data$sub.celltype)
+table(Idents(AP2_sub))
+cellno <- table(AP2_sub@meta.data$sub.celltype, AP2_sub@meta.data$orig.ident)
+
+write.table(cellno,"cellno_AP2_sub.txt",sep="\t",row.names=TRUE)
+
+
+  
+  
